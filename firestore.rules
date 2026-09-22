@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Trio INC. Internal 3-Member POD Operations Hub
+    // Allows read and write for all operational documents
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

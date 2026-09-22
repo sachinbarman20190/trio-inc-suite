@@ -1,0 +1,6 @@
+{
+  "name": "Trio INC.",
+  "description": "Internal team management, analytics, and collaboration hub for a 3-member Print-On-Demand startup.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

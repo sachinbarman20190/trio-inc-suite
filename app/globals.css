@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Suppress Next.js dev activity indicator and overlay badge */
+nextjs-portal,
+#nextjs-dev-overlay,
+[data-nextjs-dev-overlay],
+[data-nextjs-toast],
+div:has(> svg[data-nextjs-dev-indicator]),
+div[data-nextjs-scroll-focus-boundary] ~ div[data-nextjs-portal] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}

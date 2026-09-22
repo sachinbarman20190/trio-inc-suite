@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "Team members in the 3-member whitelist with roles (admin / member)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastActive": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "chat_messages": {
+      "title": "Chat Messages",
+      "description": "Real-time group messages and voice notes for the 3-member team",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderEmail": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "voice", "file"] },
+        "content": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "audioDuration": { "type": "number" },
+        "driveFileId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "reactions": { "type": "object" }
+      },
+      "required": ["senderUid", "type", "createdAt"]
+    },
+    "meetings": {
+      "title": "Meetings",
+      "description": "Google Meet and business meetings hub",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "agenda": { "type": "string" },
+        "meetLink": { "type": "string" },
+        "scheduledTime": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["upcoming", "in-progress", "completed"] },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "meetLink", "scheduledTime", "status"]
+    },
+    "doubts_and_updates": {
+      "title": "Doubts and Updates",
+      "description": "Work updates, bug reports, and design doubts with media uploads to Admin Drive",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["doubt", "update", "bug", "design"] },
+        "status": { "type": "string", "enum": ["open", "in-review", "resolved"] },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video", "none"] },
+        "driveFileId": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "creatorEmail": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "commentsCount": { "type": "number" }
+      },
+      "required": ["title", "category", "status", "createdBy"]
+    },
+    "doubts_comments": {
+      "title": "Doubt Comments",
+      "description": "Threaded comments for doubts and work updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "doubtId": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorEmail": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["doubtId", "authorUid", "content"]
+    },
+    "pod_presets": {
+      "title": "POD Profit Calculator Presets",
+      "description": "Saved Print-On-Demand garment pricing, print, shipping, and margin presets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "garmentCost": { "type": "number" },
+        "printingCost": { "type": "number" },
+        "packagingCourier": { "type": "number" },
+        "platformFeePct": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "netProfit": { "type": "number" },
+        "profitMarginPct": { "type": "number" },
+        "breakEvenPrice": { "type": "number" },
+        "currency": { "type": "string" },
+        "savedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "garmentCost", "printingCost", "sellingPrice"]
+    },
+    "ad_creatives": {
+      "title": "Ad Creatives Repository",
+      "description": "Centralized marketing reels, video ads, and mockups in Admin 5 TB Drive",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "campaign": { "type": "string" },
+        "platform": { "type": "string", "enum": ["Instagram", "Facebook", "TikTok", "YouTube", "Other"] },
+        "mediaType": { "type": "string", "enum": ["video", "image"] },
+        "driveFileId": { "type": "string" },
+        "previewUrl": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "uploaderName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "previewUrl", "uploadedBy"]
+    },
+    "instagram_posts": {
+      "title": "Instagram Performance Logs",
+      "description": "Tracked Instagram reels and posts per team member",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "memberEmail": { "type": "string" },
+        "memberName": { "type": "string" },
+        "accountHandle": { "type": "string" },
+        "postUrl": { "type": "string" },
+        "views": { "type": "number" },
+        "impressions": { "type": "number" },
+        "likes": { "type": "number" },
+        "postDate": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["memberEmail", "views", "accountHandle"]
+    },
+    "sales_logs": {
+      "title": "POD Sales Logs",
+      "description": "Sales records: units sold, gross revenue, net profit, and product details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productName": { "type": "string" },
+        "unitsSold": { "type": "number" },
+        "grossRevenue": { "type": "number" },
+        "netProfit": { "type": "number" },
+        "date": { "type": "string" },
+        "channel": { "type": "string" },
+        "loggedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["unitsSold", "grossRevenue", "netProfit", "date"]
+    },
+    "system_settings": {
+      "title": "System Settings",
+      "description": "Team whitelist config and Admin drive folder configuration",
+      "type": "object",
+      "properties": {
+        "adminEmail": { "type": "string" },
+        "memberEmails": { "type": "array", "items": { "type": "string" } },
+        "driveFolderId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
