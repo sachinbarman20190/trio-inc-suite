@@ -1,22 +1,59 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth-context';
 import { NotificationProvider, useNotification } from '@/lib/notification-context';
 import { NotificationToastContainer } from '@/components/NotificationToastContainer';
-import { TeamChatModule } from '@/components/TeamChatModule';
-import { MeetingHubModule } from '@/components/MeetingHubModule';
-import { DoubtsAndUpdatesModule } from '@/components/DoubtsAndUpdatesModule';
-import { PODProfitEngineModule } from '@/components/PODProfitEngineModule';
-import { AdVideoRepositoryModule } from '@/components/AdVideoRepositoryModule';
-import { InstagramTrackerModule } from '@/components/InstagramTrackerModule';
-import { BusinessAnalyticsDashboardModule } from '@/components/BusinessAnalyticsDashboardModule';
-import { AdminControlModule } from '@/components/AdminControlModule';
+import { LiveMeetingBanner } from '@/components/LiveMeetingBanner';
 import { 
   QuickNavigationCommandPalette, 
   DashboardModuleId 
 } from '@/components/QuickNavigationCommandPalette';
 import { useDashboardNavigation } from '@/lib/use-dashboard-navigation';
+
+const ModuleLoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-[300px] text-slate-400">
+    <div className="flex items-center space-x-2">
+      <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-sm font-medium">Loading module...</span>
+    </div>
+  </div>
+);
+
+const TeamChatModule = dynamic(() => import('@/components/TeamChatModule').then(m => m.TeamChatModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+const MeetingHubModule = dynamic(() => import('@/components/MeetingHubModule').then(m => m.MeetingHubModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+const DoubtsAndUpdatesModule = dynamic(() => import('@/components/DoubtsAndUpdatesModule').then(m => m.DoubtsAndUpdatesModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+const PODProfitEngineModule = dynamic(() => import('@/components/PODProfitEngineModule').then(m => m.PODProfitEngineModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+const AdVideoRepositoryModule = dynamic(() => import('@/components/AdVideoRepositoryModule').then(m => m.AdVideoRepositoryModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+const InstagramTrackerModule = dynamic(() => import('@/components/InstagramTrackerModule').then(m => m.InstagramTrackerModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+const BusinessAnalyticsDashboardModule = dynamic(() => import('@/components/BusinessAnalyticsDashboardModule').then(m => m.BusinessAnalyticsDashboardModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+const AdminControlModule = dynamic(() => import('@/components/AdminControlModule').then(m => m.AdminControlModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   MessageSquare, 
   Video, 
@@ -58,12 +95,17 @@ function DashboardView({
   setActiveTab: (tab: DashboardModuleId) => void;
 }) {
   const { 
+    currentUser,
+    userRole,
+    isAdmin,
+    isLoading,
     user, 
     teamMember, 
-    isAdmin, 
     isWhitelisted, 
-    loading, 
     whitelist, 
+    isUnauthorized,
+    unauthorizedEmail,
+    clearUnauthorized,
     signInWithGoogle, 
     signOut, 
     simulateMemberLogin 
@@ -71,6 +113,12 @@ function DashboardView({
 
   const { unreadCounts } = useNotification();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Fast unified navigation handler: switches tab and closes More menu immediately
+  const handleTabSwitch = (tab: DashboardModuleId) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
 
   // Global keyboard shortcut hook (Ctrl+K / Cmd+K, Alt+ArrowRight/Left, 1-8 navigation)
   const {
@@ -111,35 +159,75 @@ function DashboardView({
     }
   };
 
-  // If user signed in with an unauthorized Google account outside the 3-member whitelist:
-  if (!loading && user && !isWhitelisted) {
+  // 2. Prevent any screen flashing or redirect loops while authentication state is resolving:
+  if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-red-500/40 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
-          <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto">
+      <main className="min-h-screen bg-[#070a12] flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-sky-500/20 animate-pulse">
+            3P
+          </div>
+          <div className="flex items-center space-x-2 text-slate-400 text-sm font-medium">
+            <div className="w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+            <span>Verifying Trio INC. Workspace...</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // 3. CLEAN STATE RESTRICTION:
+  // If an unauthorized email logs in, show a gentle access-denied screen and automatically trigger auth.signOut()
+  if (isUnauthorized || (user && !isWhitelisted)) {
+    const attemptedEmail = unauthorizedEmail || user?.email || 'Unknown User';
+    return (
+      <main className="min-h-screen bg-[#070a12] flex items-center justify-center p-4 font-sans selection:bg-sky-500 selection:text-white">
+        <div className="max-w-md w-full bg-slate-900/90 border border-amber-500/30 rounded-3xl p-8 text-center space-y-5 shadow-2xl backdrop-blur-xl">
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 mx-auto">
             <Shield className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-white">ACCESS DENIED</h1>
-            <p className="text-xs text-red-400 font-mono mt-1">
-              Unauthorized Gmail ID: {user.email}
+            <h1 className="text-xl font-bold text-white tracking-tight">Access Restricted</h1>
+            <p className="text-xs text-amber-400 font-mono mt-1 break-all bg-amber-500/10 border border-amber-500/20 py-1 px-2.5 rounded-lg inline-block">
+              {attemptedEmail}
             </p>
           </div>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Trio INC. is a strictly private operational hub restricted to exactly 3 designated team members. Your Google account is not on the active whitelist.
+          <p className="text-sm text-slate-300 leading-relaxed">
+            Trio INC. is a strictly private operational hub restricted to designated team members. Your Google account is not on the active whitelist.
           </p>
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-left text-xs text-slate-400 space-y-1">
-            <div className="font-semibold text-slate-300">Authorized Whitelist (3 Slots):</div>
-            <div>&bull; Sachin Barman (sachinbarman20190@gmail.com - Admin 5 TB Host)</div>
-            <div>&bull; Suraj Barman (suraj.yt.science@gmail.com - Team Member)</div>
-            <div>&bull; Member 3 (member3@gmail.com - Team Member Placeholder)</div>
+          <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 text-left text-xs text-slate-400 space-y-2">
+            <div className="font-semibold text-slate-200">Authorized Team Members:</div>
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+              <span>Sachin Barman (Admin &bull; sachinbarman20190@gmail.com)</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+              <span>Suraj Barman (Member &bull; suraj.yt.science@gmail.com)</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
+              <span>Member 3 (Member &bull; member3@gmail.com)</span>
+            </div>
           </div>
-          <button
-            onClick={() => signOut()}
-            className="w-full py-3 min-h-[44px] cursor-pointer bg-red-600 hover:bg-red-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg flex items-center justify-center"
-          >
-            Sign Out & Switch Account
-          </button>
+          <div className="pt-2 flex flex-col gap-2">
+            <button
+              onClick={() => {
+                clearUnauthorized();
+                signInWithGoogle();
+              }}
+              className="w-full py-3 min-h-[44px] cursor-pointer bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+            >
+              <LogIn className="w-4 h-4" />
+              Sign In with Authorized Google Account
+            </button>
+            <button
+              onClick={() => clearUnauthorized()}
+              className="w-full py-2.5 min-h-[40px] cursor-pointer bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold rounded-xl transition-colors"
+            >
+              Return to Workspace Preview
+            </button>
+          </div>
         </div>
       </main>
     );
@@ -222,9 +310,19 @@ function DashboardView({
 
             {/* Active User Card & Sign In/Out */}
             <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-900/90 border border-slate-800 px-2 sm:px-2.5 py-1 rounded-xl">
-              <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold text-sky-400 shrink-0">
-                {teamMember?.displayName.substring(0, 2).toUpperCase() || '3P'}
-              </div>
+              {currentUser?.photoURL ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img 
+                  src={currentUser.photoURL} 
+                  alt={teamMember?.displayName || 'User'} 
+                  referrerPolicy="no-referrer"
+                  className="w-6 h-6 rounded-full object-cover border border-sky-500/40 shrink-0" 
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold text-sky-400 shrink-0">
+                  {teamMember?.displayName.substring(0, 2).toUpperCase() || '3P'}
+                </div>
+              )}
               <div className="hidden sm:block text-left">
                 <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
                   {teamMember?.displayName}
@@ -255,14 +353,16 @@ function DashboardView({
               )}
             </div>
 
-            {/* Mobile Hamburger Drawer Button */}
+            {/* Mobile Hamburger / Menu Toggle Button */}
             <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="cursor-pointer min-h-[40px] min-w-[40px] relative flex items-center justify-center md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl border border-slate-800 transition-colors"
-              title="Open Navigation Menu"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              className="cursor-pointer min-h-[40px] min-w-[40px] relative flex items-center justify-center md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl border border-slate-800 transition-colors touch-manipulation active:scale-95"
+              title={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
+              aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
+              aria-expanded={mobileMenuOpen}
             >
-              <Menu className="w-4 h-4" />
-              {(unreadCounts.chat > 0 || unreadCounts.doubts > 0 || unreadCounts.sales > 0) && (
+              {mobileMenuOpen ? <X className="w-4 h-4 text-sky-400" /> : <Menu className="w-4 h-4" />}
+              {!mobileMenuOpen && (unreadCounts.chat > 0 || unreadCounts.doubts > 0 || unreadCounts.sales > 0) && (
                 <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-[#090d16] animate-pulse" />
               )}
             </button>
@@ -275,7 +375,7 @@ function DashboardView({
         <div className="max-w-7xl mx-auto px-2 sm:px-6 flex items-center gap-1 overflow-x-auto no-scrollbar py-1.5 sm:py-2 touch-pan-x">
           {/* Chat Tab with dynamic unread indicator */}
           <button
-            onClick={() => setActiveTab('chat')}
+            onClick={() => handleTabSwitch('chat')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'chat'
                 ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
@@ -297,7 +397,7 @@ function DashboardView({
           </button>
 
           <button
-            onClick={() => setActiveTab('meetings')}
+            onClick={() => handleTabSwitch('meetings')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'meetings'
                 ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
@@ -310,7 +410,7 @@ function DashboardView({
 
           {/* Doubts Tab with dynamic unread indicator */}
           <button
-            onClick={() => setActiveTab('doubts')}
+            onClick={() => handleTabSwitch('doubts')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'doubts'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
@@ -332,7 +432,7 @@ function DashboardView({
           </button>
 
           <button
-            onClick={() => setActiveTab('pod-calc')}
+            onClick={() => handleTabSwitch('pod-calc')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'pod-calc'
                 ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
@@ -344,7 +444,7 @@ function DashboardView({
           </button>
 
           <button
-            onClick={() => setActiveTab('creatives')}
+            onClick={() => handleTabSwitch('creatives')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'creatives'
                 ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20'
@@ -356,7 +456,7 @@ function DashboardView({
           </button>
 
           <button
-            onClick={() => setActiveTab('instagram')}
+            onClick={() => handleTabSwitch('instagram')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'instagram'
                 ? 'bg-pink-600 text-white shadow-md shadow-pink-600/20'
@@ -369,7 +469,7 @@ function DashboardView({
 
           {/* POD Sales Analytics Tab with celebration badge */}
           <button
-            onClick={() => setActiveTab('analytics')}
+            onClick={() => handleTabSwitch('analytics')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'analytics'
                 ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
@@ -391,7 +491,7 @@ function DashboardView({
           </button>
 
           <button
-            onClick={() => setActiveTab('admin')}
+            onClick={() => handleTabSwitch('admin')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'admin'
                 ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
@@ -404,90 +504,106 @@ function DashboardView({
         </div>
       </nav>
 
-      {/* Mobile Slide-Over Drawer */}
+      {/* Mobile Backdrop Overlay - Below Bottom Nav (z-40) */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop */}
+        <div 
+          onClick={() => setMobileMenuOpen(false)}
+          className="md:hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-sm transition-opacity duration-200 ease-out cursor-pointer touch-manipulation" 
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile Material 3 "More" Bottom Sheet - Positioned above backdrop (z-45) and docked right above bottom nav bar (z-50) */}
+      {mobileMenuOpen && (
+        <div 
+          className="md:hidden fixed left-0 right-0 bottom-[60px] z-45 max-h-[calc(100dvh-5.5rem)] bg-[#090d16]/98 border-t border-slate-800/90 rounded-t-3xl shadow-2xl backdrop-blur-xl flex flex-col overflow-hidden transition-all duration-200 ease-out animate-in slide-in-from-bottom-5 fade-in touch-manipulation"
+          role="dialog"
+          aria-modal="true"
+          aria-label="More Modules and Team Settings"
+        >
+          {/* Material 3 Drag / Dismiss Bar */}
           <div 
             onClick={() => setMobileMenuOpen(false)}
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity" 
-          />
+            className="pt-2.5 pb-1 flex justify-center cursor-pointer active:opacity-60 transition-opacity"
+            title="Dismiss Sheet"
+          >
+            <div className="w-10 h-1 rounded-full bg-slate-700/80 hover:bg-slate-600 transition-colors" />
+          </div>
 
-          {/* Drawer Content */}
-          <div className="relative w-4/5 max-w-xs h-full bg-[#090d16] border-l border-slate-800 p-5 flex flex-col justify-between overflow-y-auto shadow-2xl z-10">
-            <div className="space-y-5">
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-black text-white text-xs">
-                    3P
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Trio Team Hub</h3>
-                    <p className="text-[10px] text-slate-400">Print-On-Demand OS</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+          {/* Sheet Header */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/80 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-black text-white text-[11px] shadow-sm">
+                3P
               </div>
+              <div>
+                <h3 className="text-xs font-bold text-white tracking-wide">More Modules &amp; Tools</h3>
+                <p className="text-[10px] text-slate-400">Print-On-Demand Operations</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/80 transition-colors active:scale-95"
+              aria-label="Close More menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
-              {/* Quick Command Palette Launcher */}
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  openCommandPalette();
-                }}
-                className="cursor-pointer min-h-[44px] w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20 transition-all shadow-sm"
-              >
-                <span className="flex items-center gap-2">
-                  <Search className="w-4 h-4 text-sky-400" />
-                  <span>Quick Command Palette</span>
-                </span>
-                <kbd className="text-[10px] font-mono font-bold bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-sky-400">
-                  {shortcutLabel}
-                </kbd>
-              </button>
+          {/* Sheet Scrollable Body */}
+          <div className="overflow-y-auto overscroll-contain p-4 space-y-4 max-h-[60vh]">
+            {/* Quick Command Palette Launcher */}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openCommandPalette();
+              }}
+              className="cursor-pointer min-h-[44px] w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20 active:scale-[0.99] transition-all shadow-sm"
+            >
+              <span className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-sky-400" />
+                <span>Search Modules &amp; Commands</span>
+              </span>
+              <kbd className="text-[10px] font-mono font-bold bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-sky-400">
+                {shortcutLabel}
+              </kbd>
+            </button>
 
-              {/* Module Links */}
-              <div className="space-y-1">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-2 mb-1">
-                  Modules
-                </p>
+            {/* Extended Modules Grid / List */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-1">
+                Extended Modules
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {[
-                  { id: 'chat', label: 'Team Chat & Voice Notes', icon: MessageSquare, color: 'text-sky-400', count: unreadCounts.chat },
-                  { id: 'meetings', label: 'Google Meet Hub', icon: Video, color: 'text-sky-400', count: 0 },
-                  { id: 'doubts', label: 'Doubts & Updates', icon: HelpCircle, color: 'text-indigo-400', count: unreadCounts.doubts },
-                  { id: 'pod-calc', label: 'POD Profit Engine', icon: Calculator, color: 'text-emerald-400', count: 0 },
-                  { id: 'creatives', label: 'Ad Video & Creatives', icon: Film, color: 'text-rose-400', count: 0 },
-                  { id: 'instagram', label: 'Instagram Tracker', icon: Instagram, color: 'text-pink-400', count: 0 },
-                  { id: 'analytics', label: 'POD Sales Analytics', icon: BarChart3, color: 'text-sky-400', count: unreadCounts.sales },
-                  { id: 'admin', label: 'Admin & Whitelist', icon: Shield, color: 'text-amber-400', count: 0 },
+                  { id: 'creatives', label: 'Ad Video & Creatives', desc: '5 TB Google Drive Repository', icon: Film, color: 'text-rose-400', count: 0 },
+                  { id: 'instagram', label: 'Instagram Tracker', desc: 'Daily Reel Analytics & Growth', icon: Instagram, color: 'text-pink-400', count: 0 },
+                  { id: 'analytics', label: 'POD Sales Analytics', desc: 'Revenue, Profit & ROAS Trends', icon: BarChart3, color: 'text-sky-400', count: unreadCounts.sales },
+                  { id: 'admin', label: 'Admin & Whitelist', desc: 'Manage 3-Member Permissions', icon: Shield, color: 'text-amber-400', count: 0 },
                 ].map((item) => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
                   return (
                     <button
                       key={item.id}
-                      onClick={() => {
-                        setActiveTab(item.id as any);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={`cursor-pointer min-h-[44px] w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      onClick={() => handleTabSwitch(item.id as DashboardModuleId)}
+                      className={`cursor-pointer min-h-[50px] w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all active:scale-[0.98] ${
                         isActive
-                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
+                          ? 'bg-sky-600/20 text-white border border-sky-500/50 shadow-sm'
+                          : 'bg-slate-900/60 text-slate-300 border border-slate-800/80 hover:text-white hover:bg-slate-800/60'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <Icon className={`w-4 h-4 ${item.color}`} />
-                        <span>{item.label}</span>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/60 shrink-0">
+                          <Icon className={`w-4 h-4 ${item.color}`} />
+                        </div>
+                        <div className="text-left min-w-0">
+                          <div className="truncate font-semibold">{item.label}</div>
+                          <div className="text-[10px] text-slate-500 font-normal truncate">{item.desc}</div>
+                        </div>
                       </div>
                       {item.count > 0 && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white">
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white shrink-0 ml-1">
                           {item.count}
                         </span>
                       )}
@@ -495,82 +611,105 @@ function DashboardView({
                   );
                 })}
               </div>
+            </div>
 
-              {/* Mobile Member Perspective Switcher */}
-              <div className="pt-2 border-t border-slate-800">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-2 mb-2">
-                  Switch Member View
-                </p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {whitelist.map((m) => (
-                    <button
-                      key={m.email}
-                      onClick={() => {
-                        simulateMemberLogin(m.email);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={`cursor-pointer min-h-[44px] px-2 py-2 text-[11px] font-semibold rounded-lg text-center flex items-center justify-center transition-all ${
-                        teamMember?.email.toLowerCase() === m.email.toLowerCase()
-                          ? 'bg-sky-600 text-white shadow-sm'
-                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
-                      }`}
-                    >
-                      {m.displayName.split(' ')[0]}
-                    </button>
-                  ))}
-                </div>
+            {/* Mobile Member Perspective Switcher */}
+            <div className="pt-2 border-t border-slate-800/80">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-1 mb-1.5">
+                Switch Member Persona
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {whitelist.map((m) => (
+                  <button
+                    key={m.email}
+                    onClick={() => {
+                      simulateMemberLogin(m.email);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`cursor-pointer min-h-[44px] px-2 py-2 text-[11px] font-semibold rounded-xl text-center flex flex-col items-center justify-center transition-all active:scale-95 ${
+                      teamMember?.email.toLowerCase() === m.email.toLowerCase()
+                        ? 'bg-sky-600 text-white shadow-sm border border-sky-500'
+                        : 'bg-slate-900/90 text-slate-400 border border-slate-800 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="truncate w-full">{m.displayName.split(' ')[0]}</span>
+                    <span className="text-[9px] opacity-75 font-normal">
+                      {m.role === 'admin' ? 'Admin' : 'Member'}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Drawer Bottom Actions */}
-            <div className="pt-4 border-t border-slate-800 space-y-3">
+            {/* Sheet Bottom Actions */}
+            <div className="pt-2 border-t border-slate-800/80 space-y-2">
               {installable && (
                 <button
                   onClick={() => {
                     handleInstallPWA();
                     setMobileMenuOpen(false);
                   }}
-                  className="cursor-pointer min-h-[44px] w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2.5 rounded-xl transition-all shadow-md"
+                  className="cursor-pointer min-h-[44px] w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2.5 rounded-xl transition-all shadow-md active:scale-[0.98]"
                 >
                   <DownloadCloud className="w-4 h-4" /> Install PWA on Phone
                 </button>
               )}
 
-              <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                <HardDrive className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                <span>Storage: <strong>Admin 5 TB Drive</strong></span>
+              <div className="flex items-center justify-between text-[11px] text-slate-400 bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span>Storage: <strong className="text-slate-200">Admin 5 TB Drive</strong></span>
+                </div>
+                <span className="text-[9px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                  Ready
+                </span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Content Workspace */}
+      {/* Real-Time Live Meeting in Progress Banner (App-Wide) */}
+      <LiveMeetingBanner />
+
+      {/* Main Content Workspace with fluid Material 3 view transitions */}
       <div className={`flex-1 max-w-7xl w-full mx-auto ${
         activeTab === 'chat' 
           ? 'p-0 sm:p-4 lg:p-6 pb-20 md:pb-6' 
           : 'p-3 sm:p-6 lg:p-8 pb-24 md:pb-8'
       }`}>
-        {activeTab === 'chat' && <TeamChatModule />}
-        {activeTab === 'meetings' && <MeetingHubModule />}
-        {activeTab === 'doubts' && <DoubtsAndUpdatesModule />}
-        {activeTab === 'pod-calc' && <PODProfitEngineModule />}
-        {activeTab === 'creatives' && <AdVideoRepositoryModule />}
-        {activeTab === 'instagram' && <InstagramTrackerModule />}
-        {activeTab === 'analytics' && <BusinessAnalyticsDashboardModule />}
-        {activeTab === 'admin' && <AdminControlModule />}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full h-full will-change-transform"
+          >
+            {activeTab === 'chat' && <TeamChatModule />}
+            {activeTab === 'meetings' && <MeetingHubModule />}
+            {activeTab === 'doubts' && <DoubtsAndUpdatesModule />}
+            {activeTab === 'pod-calc' && <PODProfitEngineModule />}
+            {activeTab === 'creatives' && <AdVideoRepositoryModule />}
+            {activeTab === 'instagram' && <InstagramTrackerModule />}
+            {activeTab === 'analytics' && <BusinessAnalyticsDashboardModule />}
+            {activeTab === 'admin' && <AdminControlModule />}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Mobile Bottom Navigation Bar (Docked cleanly with z-50 & Material 3 pill indicators) */}
       <nav 
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#090d16]/95 border-t border-slate-800/80 backdrop-blur-xl shadow-2xl px-2 pt-1.5 pb-[max(env(safe-area-inset-bottom),0.5rem)] flex items-center justify-around select-none"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#090d16]/98 border-t border-slate-800/90 backdrop-blur-2xl shadow-2xl px-2 pt-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] flex items-center justify-around select-none touch-manipulation"
       >
         {/* Chat Tab with dynamic unread red accent dot */}
         <button
-          onClick={() => setActiveTab('chat')}
-          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group"
+          onClick={() => handleTabSwitch('chat')}
+          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group active:scale-95 transition-transform"
           title="Team Chat & Voice Notes"
+          aria-label="Team Chat & Voice Notes"
         >
           <div className={`relative flex items-center justify-center w-14 h-7 rounded-full transition-all duration-200 ${
             activeTab === 'chat'
@@ -591,9 +730,10 @@ function DashboardView({
 
         {/* Meet Tab */}
         <button
-          onClick={() => setActiveTab('meetings')}
-          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group"
+          onClick={() => handleTabSwitch('meetings')}
+          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group active:scale-95 transition-transform"
           title="Google Meet Hub"
+          aria-label="Google Meet Hub"
         >
           <div className={`flex items-center justify-center w-14 h-7 rounded-full transition-all duration-200 ${
             activeTab === 'meetings'
@@ -611,9 +751,10 @@ function DashboardView({
 
         {/* Doubts Tab with dynamic unread indicator */}
         <button
-          onClick={() => setActiveTab('doubts')}
-          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group"
+          onClick={() => handleTabSwitch('doubts')}
+          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group active:scale-95 transition-transform"
           title="Doubts & Updates"
+          aria-label="Doubts & Updates"
         >
           <div className={`relative flex items-center justify-center w-14 h-7 rounded-full transition-all duration-200 ${
             activeTab === 'doubts'
@@ -634,9 +775,10 @@ function DashboardView({
 
         {/* POD Calc Tab */}
         <button
-          onClick={() => setActiveTab('pod-calc')}
-          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group"
+          onClick={() => handleTabSwitch('pod-calc')}
+          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group active:scale-95 transition-transform"
           title="POD Profit Engine"
+          aria-label="POD Profit Engine"
         >
           <div className={`relative flex items-center justify-center w-14 h-7 rounded-full transition-all duration-200 ${
             activeTab === 'pod-calc'
@@ -657,26 +799,28 @@ function DashboardView({
 
         {/* More / Menu Drawer Toggle */}
         <button
-          onClick={() => setMobileMenuOpen(true)}
-          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group"
-          title="More Modules"
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+          className="cursor-pointer min-h-[52px] flex-1 flex flex-col items-center justify-center py-0.5 px-1 group active:scale-95 transition-transform"
+          title={mobileMenuOpen ? 'Close Menu' : 'More Modules & Settings'}
+          aria-label={mobileMenuOpen ? 'Close Menu' : 'More Modules & Settings'}
+          aria-expanded={mobileMenuOpen}
         >
           <div className={`relative flex items-center justify-center w-14 h-7 rounded-full transition-all duration-200 ${
-            ['creatives', 'instagram', 'analytics', 'admin'].includes(activeTab)
+            mobileMenuOpen || ['creatives', 'instagram', 'analytics', 'admin'].includes(activeTab)
               ? 'bg-amber-500/25 text-amber-300 border border-amber-500/30 shadow-sm scale-105'
               : 'text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-800/40'
           }`}>
-            <Menu className="w-4 h-4" />
-            {unreadCounts.sales > 0 && (
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            {!mobileMenuOpen && unreadCounts.sales > 0 && (
               <span className="absolute -top-1 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-[#090d16] animate-pulse" />
             )}
           </div>
           <span className={`text-[10px] font-medium tracking-tight mt-1 transition-colors ${
-            ['creatives', 'instagram', 'analytics', 'admin'].includes(activeTab)
+            mobileMenuOpen || ['creatives', 'instagram', 'analytics', 'admin'].includes(activeTab)
               ? 'text-amber-300 font-bold'
               : 'text-slate-400 group-hover:text-slate-300'
           }`}>
-            More
+            {mobileMenuOpen ? 'Close' : 'More'}
           </span>
         </button>
       </nav>

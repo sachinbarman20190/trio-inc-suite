@@ -25,7 +25,10 @@ import {
   User, 
   Shield, 
   Sparkles,
-  CheckCheck
+  CheckCheck,
+  Video,
+  ExternalLink,
+  Radio
 } from 'lucide-react';
 
 export function TeamChatModule() {
@@ -72,6 +75,8 @@ export function TeamChatModule() {
           audioDuration: data.audioDuration,
           fileName: data.fileName,
           driveFileId: data.driveFileId,
+          meetUrl: data.meetUrl,
+          meetTitle: data.meetTitle,
           createdAt: data.createdAt || new Date().toISOString(),
         });
       });
@@ -328,6 +333,63 @@ export function TeamChatModule() {
                 </div>
 
                 {/* Message Bubble - Material 3 Expressive with rounded-[24px] geometry */}
+                {msg.type === 'meet_broadcast' ? (
+                  <div className="w-full max-w-lg my-2 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/60 border border-emerald-500/40 p-4 sm:p-5 shadow-xl shadow-emerald-950/20 backdrop-blur-md">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 shrink-0 shadow-md shadow-emerald-500/20">
+                          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                          </span>
+                          <Video className="w-5 h-5 animate-pulse" />
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              <Radio className="w-2.5 h-2.5 animate-pulse" />
+                              Official Meet Broadcast
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          <h4 className="text-sm sm:text-base font-bold text-white mt-1">
+                            {msg.meetTitle || 'Trio Operations Sync'}
+                          </h4>
+                          <p className="text-xs text-slate-300 mt-0.5">
+                            Initiated by <strong className="text-emerald-300">{msg.senderName}</strong>
+                          </p>
+                          {msg.content && (
+                            <p className="text-xs text-slate-400 mt-1 italic">
+                              &ldquo;{msg.content}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {msg.meetUrl && (
+                      <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-400 font-mono truncate max-w-[180px] sm:max-w-xs">
+                          {msg.meetUrl}
+                        </span>
+                        <a
+                          href={msg.meetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="cursor-pointer min-h-[42px] inline-flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-500/20 active:scale-95 touch-manipulation shrink-0"
+                        >
+                          <Video className="w-3.5 h-3.5 fill-slate-950" />
+                          <span>Join Google Meet</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
                 <div
                   className={`max-w-[85%] sm:max-w-md rounded-[24px] px-4.5 sm:px-5 py-3.5 shadow-md transition-all ${
                     isMe
@@ -395,6 +457,7 @@ export function TeamChatModule() {
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                   )}
                 </div>
+                )}
 
                 <div className="flex items-center gap-1 mt-0.5 px-1">
                   <CheckCheck className={`w-3 h-3 ${isMe ? 'text-indigo-400' : 'text-slate-600'}`} />

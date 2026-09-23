@@ -6,12 +6,14 @@
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
-        "email": { "type": "string" },
+        "name": { "type": "string" },
         "displayName": { "type": "string" },
+        "email": { "type": "string" },
         "photoURL": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "member"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "lastActive": { "type": "string", "format": "date-time" }
+        "lastActive": { "type": "string", "format": "date-time" },
+        "isOnline": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role"]
     },

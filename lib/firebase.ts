@@ -2,21 +2,23 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore, getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+
+export const firebaseConfig = {
+  apiKey: "AIzaSyCgHeXLfVdAapLkroys2d_3kuTo_DcygwA",
+  authDomain: "trio-inc.firebaseapp.com",
+  projectId: "trio-inc",
+  storageBucket: "trio-inc.firebasestorage.app",
+  messagingSenderId: "520516666421",
+  appId: "1:520516666421:web:f39a0860be9ce567205d7c",
+  firestoreDatabaseId: "(default)",
+};
 
 // Initialize App (Singleton pattern)
-const app = getApps().length > 0 ? getApp() : initializeApp({
-  apiKey: firebaseConfig.apiKey,
-  authDomain: firebaseConfig.authDomain,
-  projectId: firebaseConfig.projectId,
-  storageBucket: firebaseConfig.storageBucket,
-  messagingSenderId: firebaseConfig.messagingSenderId,
-  appId: firebaseConfig.appId,
-});
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 
-// Use custom firestoreDatabaseId if configured in config
+// Use custom firestoreDatabaseId if configured in config or default
 const firestoreDatabaseId = firebaseConfig.firestoreDatabaseId || '(default)';
 
 // Initialize Firestore with long-polling transport for reliable iframe/proxy connectivity
@@ -42,7 +44,7 @@ export const db = createFirestoreInstance();
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
-  prompt: 'select_account'
+  prompt: 'select_account',
 });
 
 export enum OperationType {
@@ -71,7 +73,11 @@ export interface FirestoreErrorInfo {
   };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): FirestoreErrorInfo {
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): FirestoreErrorInfo {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -80,10 +86,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map((provider) => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || [],
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
     },
     operationType,
     path,

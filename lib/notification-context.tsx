@@ -6,11 +6,15 @@ import {
   query, 
   orderBy, 
   limit, 
-  onSnapshot 
+  onSnapshot,
+  doc,
+  setDoc,
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
-import { AppNotification, NotificationType } from '@/lib/types';
+import { AppNotification, NotificationType, ActiveMeeting } from '@/lib/types';
 import { DashboardModuleId } from '@/components/QuickNavigationCommandPalette';
 import { playNotificationChime } from '@/lib/audio-chime';
 
@@ -25,11 +29,14 @@ interface NotificationContextType {
   unreadCounts: UnreadCounts;
   webNotificationsEnabled: boolean;
   permissionStatus: 'default' | 'granted' | 'denied' | 'unsupported';
+  activeMeeting: ActiveMeeting | null;
   dismissToast: (id: string) => void;
   clearUnread: (tab: DashboardModuleId) => void;
   triggerToast: (notif: Omit<AppNotification, 'id' | 'timestamp'>) => void;
   toggleWebNotifications: () => Promise<void>;
   testNotificationSound: () => void;
+  broadcastMeeting: (meetUrl: string, title?: string) => Promise<void>;
+  endActiveMeeting: () => Promise<void>;
   activeTab: DashboardModuleId;
   setActiveTab: (tab: DashboardModuleId) => void;
 }
@@ -47,6 +54,7 @@ export function NotificationProvider({
 }) {
   const { teamMember, user } = useAuth();
   const [activeToasts, setActiveToasts] = useState<AppNotification[]>([]);
+  const [activeMeeting, setActiveMeeting] = useState<ActiveMeeting | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({
     chat: 0,
     doubts: 0,
@@ -114,7 +122,9 @@ export function NotificationProvider({
     setActiveToasts((prev) => [newToast, ...prev.slice(0, 2)]);
 
     // 2. Play Web Audio chime
-    if (notif.type === 'sales') {
+    if (notif.type === 'meeting') {
+      playNotificationChime('meeting');
+    } else if (notif.type === 'sales') {
       playNotificationChime('milestone');
     } else if (notif.type === 'doubt' || notif.type === 'update') {
       playNotificationChime('doubt');
@@ -350,6 +360,93 @@ export function NotificationProvider({
     return () => unsubscribe();
   }, [teamMember, triggerToast]);
 
+  // Broadcast a new meeting to all team members via Firestore & Auto Chat Broadcast
+  const broadcastMeeting = useCallback(async (meetUrl: string, title: string = 'Trio Operations Sync') => {
+    if (!teamMember) return;
+    const startedBy = teamMember.displayName || 'Sachin Barman';
+    const startedByEmail = teamMember.email || 'sachinbarman20190@gmail.com';
+    const meetingTitle = title.trim() || 'Trio Operations Sync';
+
+    let formattedLink = meetUrl.trim();
+    if (!formattedLink.startsWith('http://') && !formattedLink.startsWith('https://')) {
+      formattedLink = `https://${formattedLink}`;
+    }
+
+    // 1. Update/create active meeting document in Firestore
+    await setDoc(doc(db, 'system', 'active_meeting'), {
+      isActive: true,
+      meetUrl: formattedLink,
+      startedBy,
+      startedByEmail,
+      startedAt: serverTimestamp(),
+      title: meetingTitle,
+    });
+
+    // 2. Automatically post official system card message into Trio Team Hub Channel (chat_messages)
+    await addDoc(collection(db, 'chat_messages'), {
+      senderUid: teamMember.uid || teamMember.email,
+      senderEmail: teamMember.email,
+      senderName: startedBy,
+      senderRole: 'admin',
+      type: 'meet_broadcast',
+      meetUrl: formattedLink,
+      meetTitle: meetingTitle,
+      content: `🚨 Live Team Sync initiated by ${startedBy}! Join the Google Meet session now.`,
+      createdAt: new Date().toISOString(),
+    });
+  }, [teamMember]);
+
+  // End active meeting for all members
+  const endActiveMeeting = useCallback(async () => {
+    await setDoc(doc(db, 'system', 'active_meeting'), {
+      isActive: false,
+      endedAt: serverTimestamp(),
+    }, { merge: true });
+  }, []);
+
+  // 4. Live Meeting Broadcast Listener (system/active_meeting)
+  const meetingInitializedRef = useRef(false);
+  const prevIsActiveRef = useRef<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    const meetingDocRef = doc(db, 'system', 'active_meeting');
+    const unsubscribe = onSnapshot(meetingDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as ActiveMeeting;
+        const wasActive = prevIsActiveRef.current;
+        prevIsActiveRef.current = !!data.isActive;
+        setActiveMeeting(data);
+
+        // Don't fire audio chime/toast on initial load
+        if (!meetingInitializedRef.current) {
+          meetingInitializedRef.current = true;
+          return;
+        }
+
+        // When meeting transitions from inactive -> active, notify other members with toast & chime!
+        if (data.isActive && !wasActive) {
+          const isMe = teamMember?.email.toLowerCase() === data.startedByEmail?.toLowerCase();
+          if (!isMe) {
+            triggerToast({
+              type: 'meeting',
+              title: '🔴 Live Meeting in Progress',
+              snippet: `${data.startedBy || 'Sachin'} has started a team meeting. Click to join!`,
+              targetTab: 'meetings',
+            });
+          }
+        }
+      } else {
+        prevIsActiveRef.current = false;
+        setActiveMeeting(null);
+        meetingInitializedRef.current = true;
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'system/active_meeting');
+    });
+
+    return () => unsubscribe();
+  }, [teamMember, triggerToast]);
+
   return (
     <NotificationContext.Provider
       value={{
@@ -357,11 +454,14 @@ export function NotificationProvider({
         unreadCounts,
         webNotificationsEnabled,
         permissionStatus,
+        activeMeeting,
         dismissToast,
         clearUnread,
         triggerToast,
         toggleWebNotifications,
         testNotificationSound,
+        broadcastMeeting,
+        endActiveMeeting,
         activeTab,
         setActiveTab,
       }}

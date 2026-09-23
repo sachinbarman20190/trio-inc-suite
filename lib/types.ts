@@ -11,6 +11,17 @@ export interface TeamMember {
   title?: string;
 }
 
+export interface UserProfileDocument {
+  uid: string;
+  name: string | null;
+  email: string | null;
+  photoURL: string | null;
+  role: UserRole;
+  lastActive: any;
+  isOnline: boolean;
+  createdAt?: any;
+}
+
 // Predefined 3-member whitelist for Trio INC.
 // Sachin Barman (sachinbarman20190@gmail.com) is the root Admin with the 5 TB Drive
 export const DEFAULT_ADMIN_EMAIL = 'sachinbarman20190@gmail.com';
@@ -42,18 +53,37 @@ export const INITIAL_WHITELIST: TeamMember[] = [
   },
 ];
 
+export interface ActiveMeeting {
+  isActive: boolean;
+  meetUrl: string;
+  startedBy: string;
+  startedByEmail?: string;
+  startedAt: any;
+  title: string;
+  endedAt?: any;
+}
+
+export interface MeetingSettings {
+  permanentMeetUrl: string;
+  defaultTitle: string;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
 export interface ChatMessage {
   id: string;
   senderUid: string;
   senderEmail: string;
   senderName: string;
   senderRole: UserRole;
-  type: 'text' | 'voice' | 'file';
+  type: 'text' | 'voice' | 'file' | 'meet_broadcast';
   content?: string;
   audioUrl?: string;
   audioDuration?: number;
   fileName?: string;
   driveFileId?: string;
+  meetUrl?: string;
+  meetTitle?: string;
   createdAt: string; // ISO string
 }
 
@@ -153,7 +183,7 @@ export interface SalesLog {
   createdAt: string;
 }
 
-export type NotificationType = 'chat' | 'voice' | 'doubt' | 'update' | 'sales' | 'system';
+export type NotificationType = 'chat' | 'voice' | 'doubt' | 'update' | 'sales' | 'system' | 'meeting';
 
 export interface AppNotification {
   id: string;
@@ -167,3 +197,24 @@ export interface AppNotification {
   timestamp: number;
   data?: Record<string, any>;
 }
+
+export type TaskCategory = 'Design' | 'Shopify Listing' | 'Social Marketing' | 'Fulfillment' | 'General';
+export type TaskPriority = 'High' | 'Medium' | 'Low';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed';
+
+export interface DailyTask {
+  id: string;
+  title: string;
+  category: TaskCategory;
+  assignedTo: string;
+  assignedToEmail?: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  dueDate: string;
+  dateKey?: string;
+  createdBy: string;
+  createdByEmail?: string;
+  completedAt: string | null;
+  createdAt: string;
+}
+

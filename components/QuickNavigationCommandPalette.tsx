@@ -110,7 +110,7 @@ export const DASHBOARD_MODULES: ModuleItem[] = [
     shortcut: '7',
     color: 'text-sky-400',
     bgLight: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-    keywords: ['analytics', 'sales', 'revenue', 'orders', 'charts', 'performance', 'summary'],
+    keywords: ['analytics', 'sales', 'revenue', 'orders', 'charts', 'performance', 'summary', 'tasks', 'checklist', 'daily tasks', 'todos'],
   },
   {
     id: 'admin',

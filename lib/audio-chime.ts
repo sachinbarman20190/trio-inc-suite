@@ -1,7 +1,7 @@
 // Synthesized Web Audio API sound engine (zero external audio assets)
 // Creates rich, non-intrusive harmonic chimes directly via the Web Audio API oscillator
 
-export function playNotificationChime(type: 'message' | 'doubt' | 'milestone' = 'message') {
+export function playNotificationChime(type: 'message' | 'doubt' | 'milestone' | 'meeting' = 'message') {
   if (typeof window === 'undefined') return;
 
   try {
@@ -15,7 +15,33 @@ export function playNotificationChime(type: 'message' | 'doubt' | 'milestone' = 
 
     const now = ctx.currentTime;
 
-    if (type === 'milestone') {
+    if (type === 'meeting') {
+      // Live Meeting broadcast: Urgent harmonic chime with double chime echo
+      // F5 (698.46 Hz) -> A5 (880.00 Hz) -> C6 (1046.50 Hz) -> F6 (1396.91 Hz)
+      const notes = [
+        { freq: 698.46, time: 0, duration: 0.28, gain: 0.2 },
+        { freq: 880.00, time: 0.08, duration: 0.32, gain: 0.22 },
+        { freq: 1046.50, time: 0.16, duration: 0.4, gain: 0.25 },
+        { freq: 1396.91, time: 0.24, duration: 0.6, gain: 0.26 },
+      ];
+
+      notes.forEach(({ freq, time, duration, gain }) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + time);
+
+        gainNode.gain.setValueAtTime(0, now + time);
+        gainNode.gain.linearRampToValueAtTime(gain, now + time + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + time + duration);
+
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        osc.start(now + time);
+        osc.stop(now + time + duration);
+      });
+    } else if (type === 'milestone') {
       // Sales Milestone celebration: Ascending triumphant major arpeggio
       // C5 (523.25 Hz) -> E5 (659.25 Hz) -> G5 (783.99 Hz) -> C6 (1046.50 Hz)
       const notes = [

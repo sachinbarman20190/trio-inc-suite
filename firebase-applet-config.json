@@ -1,12 +1,12 @@
 {
-  "projectId": "graphite-informatics-mbqlp",
-  "appId": "1:1068161299282:web:8cdbece0c6e55181f4808b",
-  "apiKey": "AIzaSyBIdiCQIX9y0_xjaWrbokUAlLCDn24tyyo",
-  "authDomain": "graphite-informatics-mbqlp.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-d3a3d92f-696f-4ccf-a417-7a6d04ba2b58",
-  "storageBucket": "graphite-informatics-mbqlp.firebasestorage.app",
-  "messagingSenderId": "1068161299282",
+  "projectId": "trio-inc",
+  "appId": "1:520516666421:web:f39a0860be9ce567205d7c",
+  "apiKey": "AIzaSyCgHeXLfVdAapLkroys2d_3kuTo_DcygwA",
+  "authDomain": "trio-inc.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "trio-inc.firebasestorage.app",
+  "messagingSenderId": "520516666421",
   "measurementId": "",
-  "oAuthClientId": "1068161299282-f65ppme6kbrbcv4dt5ddegh4rn0rcrr8.apps.googleusercontent.com",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

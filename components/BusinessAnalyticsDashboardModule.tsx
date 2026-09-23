@@ -37,6 +37,7 @@ import {
   ResponsiveContainer, 
   Legend 
 } from 'recharts';
+import { DailyTaskChecklistWidget } from './DailyTaskChecklistWidget';
 
 export function BusinessAnalyticsDashboardModule({ 
   totalCreativesCount = 0,
@@ -244,6 +245,9 @@ export function BusinessAnalyticsDashboardModule({
           <p className="text-[11px] text-pink-400 font-medium mt-1">Organic top-of-funnel reach</p>
         </div>
       </div>
+
+      {/* Daily Task Checklists: 3-Member POD Operations Execution Engine */}
+      <DailyTaskChecklistWidget />
 
       {/* Recharts Visual Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
