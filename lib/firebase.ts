@@ -4,13 +4,13 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore, getFirestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyCgHeXLfVdAapLkroys2d_3kuTo_DcygwA",
-  authDomain: "trio-inc.firebaseapp.com",
-  projectId: "trio-inc",
-  storageBucket: "trio-inc.firebasestorage.app",
-  messagingSenderId: "520516666421",
-  appId: "1:520516666421:web:f39a0860be9ce567205d7c",
-  firestoreDatabaseId: "(default)",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCgHeXLfVdAapLkroys2d_3kuTo_DcygwA",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "trio-inc.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "trio-inc",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "trio-inc.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "520516666421",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:520516666421:web:f39a0860be9ce567205d7c",
+  firestoreDatabaseId: process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_DATABASE_ID || "(default)",
 };
 
 // Initialize App (Singleton pattern)

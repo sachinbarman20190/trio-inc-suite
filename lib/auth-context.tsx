@@ -92,129 +92,126 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const whitelistRef = React.useRef(whitelist);
+  useEffect(() => {
+    whitelistRef.current = whitelist;
+  }, [whitelist]);
+
+  // 3-second hard timeout fallback: guarantees splash screen NEVER freezes indefinitely
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-      setIsLoading(true);
+      try {
+        if (authUser && authUser.email) {
+          const emailLower = authUser.email.trim().toLowerCase();
 
-      if (authUser && authUser.email) {
-        const emailLower = authUser.email.trim().toLowerCase();
+          // Check if user is in authorized whitelist
+          const isRootAdmin = emailLower === DEFAULT_ADMIN_EMAIL.toLowerCase();
+          const isPredefined = AUTHORIZED_WHITELIST_EMAILS.some((e) => e.toLowerCase() === emailLower);
+          const currentList = whitelistRef.current;
+          const inLocalWhitelist = currentList.some((m) => m.email.trim().toLowerCase() === emailLower);
 
-        // Check if user is in authorized whitelist
-        const isRootAdmin = emailLower === DEFAULT_ADMIN_EMAIL.toLowerCase();
-        const isPredefined = AUTHORIZED_WHITELIST_EMAILS.some((e) => e.toLowerCase() === emailLower);
-        const inLocalWhitelist = whitelist.some((m) => m.email.trim().toLowerCase() === emailLower);
-
-        // Also check if already present in Firestore users collection
-        let isFirestoreAuthorized = false;
-        try {
-          const userDocRef = doc(db, 'users', authUser.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            isFirestoreAuthorized = true;
+          // Also check if already present in Firestore users collection
+          let isFirestoreAuthorized = false;
+          try {
+            const userDocRef = doc(db, 'users', authUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+              isFirestoreAuthorized = true;
+            }
+          } catch (e) {
+            console.warn('Error verifying user in Firestore:', e);
           }
-        } catch (e) {
-          console.warn('Error verifying user in Firestore:', e);
-        }
 
-        const isAuthorized = isRootAdmin || isPredefined || inLocalWhitelist || isFirestoreAuthorized;
+          const isAuthorized = isRootAdmin || isPredefined || inLocalWhitelist || isFirestoreAuthorized;
 
-        if (!isAuthorized) {
-          // 3. CLEAN STATE RESTRICTION:
-          // If an unauthorized email logs in, show a gentle access-denied screen and automatically trigger auth.signOut().
-          const rejectedEmail = authUser.email;
-          setUnauthorizedEmail(rejectedEmail);
-          setIsUnauthorized(true);
+          if (!isAuthorized) {
+            // 3. CLEAN STATE RESTRICTION:
+            // If an unauthorized email logs in, show a gentle access-denied screen and automatically trigger auth.signOut().
+            const rejectedEmail = authUser.email;
+            setUnauthorizedEmail(rejectedEmail);
+            setIsUnauthorized(true);
+            setCurrentUser(null);
+            setTeamMember(null);
+            setUserRole(null);
+            setIsLoading(false);
+
+            try {
+              await fbSignOut(auth);
+            } catch (err) {
+              console.warn('Auto sign-out error for unauthorized user:', err);
+            }
+            return;
+          }
+
+          // User is authorized - clear any previous rejection
+          setIsUnauthorized(false);
+          setUnauthorizedEmail(null);
+
+          // Compute role strictly: user.email === "sachinbarman20190@gmail.com" ? "admin" : "member"
+          const assignedRole: UserRole = emailLower === DEFAULT_ADMIN_EMAIL.toLowerCase() ? 'admin' : 'member';
+
+          // AUTO-SYNC USER PROFILE ON LOGIN:
+          try {
+            const userRef = doc(db, 'users', authUser.uid);
+            await setDoc(userRef, {
+              uid: authUser.uid,
+              name: authUser.displayName || authUser.email.split('@')[0],
+              email: authUser.email,
+              photoURL: authUser.photoURL || '',
+              role: assignedRole,
+              lastActive: serverTimestamp(),
+              isOnline: true,
+            }, { merge: true });
+          } catch (e) {
+            handleFirestoreError(e, OperationType.WRITE, `users/${authUser.uid}`);
+          }
+
+          let found = currentList.find((m) => m.email.trim().toLowerCase() === emailLower);
+          if (!found) {
+            found = INITIAL_WHITELIST.find((m) => m.email.trim().toLowerCase() === emailLower);
+            if (found) {
+              setWhitelist((prev) => {
+                const updated = [...prev.filter((m) => m.email.toLowerCase() !== emailLower), found!];
+                saveWhitelist(updated);
+                return updated;
+              });
+            }
+          }
+
+          const memberData: TeamMember = {
+            uid: authUser.uid,
+            email: authUser.email,
+            displayName: authUser.displayName || found?.displayName || (assignedRole === 'admin' ? 'Sachin Barman' : 'Team Member'),
+            role: assignedRole,
+            avatarUrl: authUser.photoURL || undefined,
+            title: found?.title || (assignedRole === 'admin' ? 'Founder & Admin (5 TB Drive Host)' : 'Team Member'),
+          };
+
+          setCurrentUser(authUser);
+          setTeamMember(memberData);
+          setUserRole(assignedRole);
+        } else {
+          // No active Firebase Auth session -> unauthenticated: immediately clear and set loading false
           setCurrentUser(null);
           setTeamMember(null);
           setUserRole(null);
-          setIsLoading(false);
-
-          try {
-            await fbSignOut(auth);
-          } catch (err) {
-            console.warn('Auto sign-out error for unauthorized user:', err);
-          }
-          return;
         }
-
-        // User is authorized - clear any previous rejection
-        setIsUnauthorized(false);
-        setUnauthorizedEmail(null);
-
-        // Compute role strictly: user.email === "sachinbarman20190@gmail.com" ? "admin" : "member"
-        const assignedRole: UserRole = emailLower === DEFAULT_ADMIN_EMAIL.toLowerCase() ? 'admin' : 'member';
-
-        // 1. AUTO-SYNC USER PROFILE ON LOGIN:
-        // Inside onAuthStateChanged, when an authorized team member signs in with Google:
-        // Check users collection using uid or sanitized email, upsert user profile document:
-        // {
-        //   uid: user.uid,
-        //   name: user.displayName,
-        //   email: user.email,
-        //   photoURL: user.photoURL,
-        //   role: user.email === "sachinbarman20190@gmail.com" ? "admin" : "member",
-        //   lastActive: serverTimestamp(),
-        //   isOnline: true
-        // }
-        // Set merge: true so existing settings/preferences are not overwritten.
-        try {
-          const userRef = doc(db, 'users', authUser.uid);
-          await setDoc(userRef, {
-            uid: authUser.uid,
-            name: authUser.displayName || authUser.email.split('@')[0],
-            email: authUser.email,
-            photoURL: authUser.photoURL || '',
-            role: authUser.email === "sachinbarman20190@gmail.com" ? "admin" : "member",
-            lastActive: serverTimestamp(),
-            isOnline: true,
-          }, { merge: true });
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, `users/${authUser.uid}`);
-        }
-
-        let found = whitelist.find((m) => m.email.trim().toLowerCase() === emailLower);
-        if (!found) {
-          found = INITIAL_WHITELIST.find((m) => m.email.trim().toLowerCase() === emailLower);
-          if (found) {
-            setWhitelist((prev) => {
-              const updated = [...prev.filter((m) => m.email.toLowerCase() !== emailLower), found!];
-              saveWhitelist(updated);
-              return updated;
-            });
-          }
-        }
-
-        const memberData: TeamMember = {
-          uid: authUser.uid,
-          email: authUser.email,
-          displayName: authUser.displayName || found?.displayName || (assignedRole === 'admin' ? 'Sachin Barman' : 'Team Member'),
-          role: assignedRole,
-          avatarUrl: authUser.photoURL || undefined,
-          title: found?.title || (assignedRole === 'admin' ? 'Founder & Admin (5 TB Drive Host)' : 'Team Member'),
-        };
-
-        setCurrentUser(authUser);
-        setTeamMember(memberData);
-        setUserRole(assignedRole);
-      } else {
-        // No active Firebase Auth session
-        setCurrentUser(null);
-        if (!isUnauthorized) {
-          // Initialize default preview session so app can be tested immediately
-          const defaultMember = whitelist[0] || INITIAL_WHITELIST[0];
-          setTeamMember(defaultMember);
-          setUserRole(defaultMember?.role || 'admin');
-        } else {
-          setTeamMember(null);
-          setUserRole(null);
-        }
+      } catch (err) {
+        console.error('Error handling auth state change:', err);
+      } finally {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [whitelist, isUnauthorized]);
+  }, []);
 
   const signInWithGoogle = async () => {
     try {
@@ -223,11 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUnauthorizedEmail(null);
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      console.error('Google Sign-in error:', error);
-      // Ignore user-cancelled popup closing without displaying an intrusive error
-      if (error?.code !== 'auth/popup-closed-by-user' && error?.code !== 'auth/cancelled-popup-request') {
-        alert(`Sign-in note: ${error.message || 'Error authenticating with Google'}`);
-      }
+      console.warn('Google Sign-in info:', error?.message || error);
+      // Suppress popup cancellation / closing errors cleanly without throwing uncaught promise errors or window.alerts
     } finally {
       setIsLoading(false);
     }

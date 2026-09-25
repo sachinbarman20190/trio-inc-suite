@@ -150,6 +150,15 @@ function DashboardView({
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
+  // 3-second hard timeout fallback: guarantees splash screen NEVER freezes indefinitely
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAuthTimedOut(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleInstallPWA = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -159,8 +168,8 @@ function DashboardView({
     }
   };
 
-  // 2. Prevent any screen flashing or redirect loops while authentication state is resolving:
-  if (isLoading) {
+  // 1. Splash Screen with 3-second hard timeout fallback
+  if (isLoading && !authTimedOut) {
     return (
       <main className="min-h-screen bg-[#070a12] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center space-y-4">
@@ -176,7 +185,7 @@ function DashboardView({
     );
   }
 
-  // 3. CLEAN STATE RESTRICTION:
+  // 2. CLEAN STATE RESTRICTION:
   // If an unauthorized email logs in, show a gentle access-denied screen and automatically trigger auth.signOut()
   if (isUnauthorized || (user && !isWhitelisted)) {
     const attemptedEmail = unauthorizedEmail || user?.email || 'Unknown User';
@@ -225,8 +234,109 @@ function DashboardView({
               onClick={() => clearUnauthorized()}
               className="w-full py-2.5 min-h-[40px] cursor-pointer bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold rounded-xl transition-colors"
             >
-              Return to Workspace Preview
+              Return to Login
             </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // 3. UNRESTRICTED LOGIN SCREEN:
+  // Render clean Material 3 Google Sign-In view immediately if unauthenticated
+  if (!currentUser && !teamMember) {
+    return (
+      <main className="min-h-screen bg-[#070a12] flex items-center justify-center p-4 sm:p-6 font-sans selection:bg-sky-500 selection:text-white relative overflow-hidden">
+        {/* Subtle background ambient gradients */}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-sky-600/10 via-indigo-600/10 to-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-md w-full bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 sm:p-8 text-center space-y-6 shadow-2xl backdrop-blur-xl relative z-10">
+          {/* Logo & Identity */}
+          <div className="flex flex-col items-center space-y-3">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-sky-500/25">
+                3P
+              </div>
+              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full" />
+            </div>
+            <div>
+              <div className="flex items-center justify-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">TRIO INC.</h1>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                  POD HUB
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Private 3-Member Operations &bull; Admin 5 TB Storage
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-300 leading-relaxed">
+            Welcome to the Trio INC. operational workspace. Please authenticate with your authorized Google account to continue.
+          </p>
+
+          {/* Clean Material 3 Google Sign-In Button */}
+          <div className="space-y-3 pt-1">
+            <button
+              onClick={() => signInWithGoogle()}
+              disabled={isLoading}
+              className="w-full min-h-[48px] cursor-pointer bg-white hover:bg-slate-100 text-slate-900 font-semibold text-sm sm:text-base rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed border border-slate-200"
+            >
+              {/* Official Google Multicolor G Logo */}
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.66-5.17 3.66-9.12z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.97-1.07 7.96-2.91l-3.88-3.03c-1.08.72-2.46 1.16-4.08 1.16-3.13 0-5.78-2.11-6.73-4.96H1.26v3.13C3.26 21.36 7.33 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.27 14.26c-.25-.72-.38-1.49-.38-2.26s.13-1.54.38-2.26V6.61H1.26C.46 8.23 0 10.06 0 12s.46 3.77 1.26 5.39l4.01-3.13z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.96 1.18 15.24 0 12 0 7.33 0 3.26 2.64 1.26 6.61l4.01 3.13c.95-2.85 3.6-4.97 6.73-4.97z"
+                />
+              </svg>
+              <span>{isLoading ? 'Connecting to Google...' : 'Sign in with Google'}</span>
+            </button>
+
+            {/* Quick Demo Preview Option */}
+            <div className="pt-2 border-t border-slate-800/80">
+              <button
+                onClick={() => simulateMemberLogin('sachinbarman20190@gmail.com')}
+                className="w-full py-2.5 min-h-[40px] cursor-pointer bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <span>Explore Workspace Demo</span>
+                <span className="text-[10px] bg-slate-700/60 px-1.5 py-0.5 rounded text-sky-400 font-mono">Admin Mode</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Whitelisted Members Reference */}
+          <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 text-left text-xs space-y-2">
+            <div className="font-semibold text-slate-300 flex items-center justify-between">
+              <span>Authorized Team Members:</span>
+              <span className="text-[10px] text-slate-500 font-mono">3 Slots</span>
+            </div>
+            <div className="space-y-1.5 text-[11px] text-slate-400">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="truncate">Sachin Barman (Admin &bull; sachinbarman20190@gmail.com)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                <span className="truncate">Suraj Barman (Member &bull; suraj.yt.science@gmail.com)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                <span className="truncate">Member 3 (Member &bull; member3@gmail.com)</span>
+              </div>
+            </div>
           </div>
         </div>
       </main>
