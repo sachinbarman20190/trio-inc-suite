@@ -23,6 +23,7 @@ export type DashboardModuleId =
   | 'doubts' 
   | 'pod-calc' 
   | 'creatives' 
+  | 'media-hub'
   | 'instagram' 
   | 'analytics' 
   | 'admin';
@@ -93,11 +94,22 @@ export const DASHBOARD_MODULES: ModuleItem[] = [
     keywords: ['video', 'ads', 'creatives', 'drive', 'google drive', 'media', 'upload', 'reels', 'storage'],
   },
   {
+    id: 'media-hub',
+    name: 'Media Asset Hub & Gallery',
+    description: 'Pinterest-style POD design library, DTF master files and 3D mockups',
+    icon: Sparkles,
+    shortcut: '6',
+    badge: 'Pinterest Grid',
+    color: 'text-indigo-400',
+    bgLight: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    keywords: ['media', 'asset', 'hub', 'gallery', 'designs', 'mockups', 'tshirt', 'hoodie', 'dtf', 'pinterest', 'print', 'vector'],
+  },
+  {
     id: 'instagram',
     name: 'Instagram Tracker',
     description: 'Organic and paid reel growth analytics with viral benchmark indicators',
     icon: Instagram,
-    shortcut: '6',
+    shortcut: '7',
     color: 'text-pink-400',
     bgLight: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
     keywords: ['instagram', 'reels', 'views', 'viral', 'social', 'followers', 'metrics'],
@@ -107,7 +119,7 @@ export const DASHBOARD_MODULES: ModuleItem[] = [
     name: 'POD Sales Analytics',
     description: 'E-commerce conversion breakdown, revenue milestones and weekly trends',
     icon: BarChart3,
-    shortcut: '7',
+    shortcut: '8',
     color: 'text-sky-400',
     bgLight: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
     keywords: ['analytics', 'sales', 'revenue', 'orders', 'charts', 'performance', 'summary', 'tasks', 'checklist', 'daily tasks', 'todos'],
@@ -117,7 +129,7 @@ export const DASHBOARD_MODULES: ModuleItem[] = [
     name: 'Admin & Whitelist',
     description: '3-member access management, 5 TB Drive host status and security rules',
     icon: Shield,
-    shortcut: '8',
+    shortcut: '9',
     badge: 'Root Access',
     color: 'text-amber-400',
     bgLight: 'bg-amber-500/10 text-amber-400 border-amber-500/20',

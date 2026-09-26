@@ -193,9 +193,42 @@ export interface AppNotification {
   senderName?: string;
   senderAvatar?: string;
   senderRole?: string;
-  targetTab: 'chat' | 'meetings' | 'doubts' | 'pod-calc' | 'creatives' | 'instagram' | 'analytics' | 'admin';
+  targetTab: 'chat' | 'meetings' | 'doubts' | 'pod-calc' | 'creatives' | 'instagram' | 'analytics' | 'admin' | 'media-hub';
   timestamp: number;
   data?: Record<string, any>;
+}
+
+export type MediaAssetCategory =
+  | 'All Assets'
+  | 'T-Shirt Prints'
+  | 'Hoodies & Winter'
+  | 'Mockup Renders'
+  | 'Social Media / Posters'
+  | 'DTF Vectors';
+
+export interface MediaAssetItem {
+  id: string;
+  title: string;
+  category: 'T-Shirt Prints' | 'Hoodies & Winter' | 'Mockup Renders' | 'Social Media / Posters' | 'DTF Vectors';
+  format: 'PNG' | 'PSD' | 'AI' | 'SVG' | 'TIFF';
+  resolution: string; // e.g. "300 DPI", "600 DPI Vector", "4K DTF"
+  dimensions: string; // e.g. "4500 x 5400 px"
+  fileSize: string; // e.g. "14.8 MB"
+  fileSizeBytes: number;
+  downloadsCount: number;
+  likesCount: number;
+  uploadedBy: string;
+  uploaderEmail: string;
+  uploaderAvatar?: string;
+  createdAt: string;
+  driveFolder: string;
+  driveLink: string;
+  previewUrl: string;
+  masterDownloadUrl: string;
+  tags: string[];
+  isSpotlight?: boolean;
+  colorway?: string;
+  mockupGarment?: string;
 }
 
 export type TaskCategory = 'Design' | 'Shopify Listing' | 'Social Marketing' | 'Fulfillment' | 'General';

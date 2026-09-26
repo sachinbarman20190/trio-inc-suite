@@ -41,6 +41,10 @@ const AdVideoRepositoryModule = dynamic(() => import('@/components/AdVideoReposi
   ssr: false,
   loading: () => <ModuleLoadingFallback />,
 });
+const MediaAssetHubModule = dynamic(() => import('@/components/MediaAssetHubModule').then(m => m.MediaAssetHubModule), {
+  ssr: false,
+  loading: () => <ModuleLoadingFallback />,
+});
 const InstagramTrackerModule = dynamic(() => import('@/components/InstagramTrackerModule').then(m => m.InstagramTrackerModule), {
   ssr: false,
   loading: () => <ModuleLoadingFallback />,
@@ -566,6 +570,18 @@ function DashboardView({
           </button>
 
           <button
+            onClick={() => handleTabSwitch('media-hub')}
+            className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+              activeTab === 'media-hub'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
+            Media Hub &amp; Gallery
+          </button>
+
+          <button
             onClick={() => handleTabSwitch('instagram')}
             className={`cursor-pointer min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
               activeTab === 'instagram'
@@ -686,6 +702,7 @@ function DashboardView({
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {[
+                  { id: 'media-hub', label: 'Media Hub & Gallery', desc: 'Pinterest POD Design Library', icon: Sparkles, color: 'text-indigo-400', count: 0 },
                   { id: 'creatives', label: 'Ad Video & Creatives', desc: '5 TB Google Drive Repository', icon: Film, color: 'text-rose-400', count: 0 },
                   { id: 'instagram', label: 'Instagram Tracker', desc: 'Daily Reel Analytics & Growth', icon: Instagram, color: 'text-pink-400', count: 0 },
                   { id: 'analytics', label: 'POD Sales Analytics', desc: 'Revenue, Profit & ROAS Trends', icon: BarChart3, color: 'text-sky-400', count: unreadCounts.sales },
@@ -802,6 +819,7 @@ function DashboardView({
             {activeTab === 'doubts' && <DoubtsAndUpdatesModule />}
             {activeTab === 'pod-calc' && <PODProfitEngineModule />}
             {activeTab === 'creatives' && <AdVideoRepositoryModule />}
+            {activeTab === 'media-hub' && <MediaAssetHubModule />}
             {activeTab === 'instagram' && <InstagramTrackerModule />}
             {activeTab === 'analytics' && <BusinessAnalyticsDashboardModule />}
             {activeTab === 'admin' && <AdminControlModule />}
@@ -916,7 +934,7 @@ function DashboardView({
           aria-expanded={mobileMenuOpen}
         >
           <div className={`relative flex items-center justify-center w-14 h-7 rounded-full transition-all duration-200 ${
-            mobileMenuOpen || ['creatives', 'instagram', 'analytics', 'admin'].includes(activeTab)
+            mobileMenuOpen || ['creatives', 'media-hub', 'instagram', 'analytics', 'admin'].includes(activeTab)
               ? 'bg-amber-500/25 text-amber-300 border border-amber-500/30 shadow-sm scale-105'
               : 'text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-800/40'
           }`}>
@@ -926,7 +944,7 @@ function DashboardView({
             )}
           </div>
           <span className={`text-[10px] font-medium tracking-tight mt-1 transition-colors ${
-            mobileMenuOpen || ['creatives', 'instagram', 'analytics', 'admin'].includes(activeTab)
+            mobileMenuOpen || ['creatives', 'media-hub', 'instagram', 'analytics', 'admin'].includes(activeTab)
               ? 'text-amber-300 font-bold'
               : 'text-slate-400 group-hover:text-slate-300'
           }`}>
