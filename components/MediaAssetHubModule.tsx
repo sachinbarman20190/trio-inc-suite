@@ -109,8 +109,11 @@ function determineFormat(fileName: string, mimeType: string): MediaAssetItem['fo
 }
 
 export function MediaAssetHubModule() {
-  const { teamMember, isAdmin } = useAuth();
+  const { user, currentUser, teamMember, isAdmin } = useAuth();
   const { triggerToast } = useNotification();
+
+  // Current authenticated user's email
+  const userEmail = (currentUser?.email || user?.email || teamMember?.email || '').trim().toLowerCase();
 
   // Firestore live assets state
   const [assets, setAssets] = useState<MediaAssetItem[]>([]);
@@ -135,6 +138,10 @@ export function MediaAssetHubModule() {
   const [isCopied, setIsCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // Deletion Confirmation Dialog state
+  const [assetToDelete, setAssetToDelete] = useState<MediaAssetItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
   // Detailed Upload Modal state (for setting custom specs)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [customFile, setCustomFile] = useState<File | null>(null);
@@ -146,6 +153,17 @@ export function MediaAssetHubModule() {
   const [uploadTags, setUploadTags] = useState('Oversized Tee, DTF, Print Ready');
   const [isCustomUploading, setIsCustomUploading] = useState(false);
   const [customProgress, setCustomProgress] = useState(0);
+
+  // Check if current user is Admin (sachinbarman20190@gmail.com) OR the original uploader
+  const canDeleteAsset = (asset?: MediaAssetItem | null): boolean => {
+    if (!asset) return false;
+    if (userEmail === 'sachinbarman20190@gmail.com' || isAdmin) return true;
+    const uploaderEmail = (asset.uploaderEmail || '').trim().toLowerCase();
+    const uploadedBy = (asset.uploadedBy || '').trim().toLowerCase();
+    if (uploaderEmail && uploaderEmail === userEmail) return true;
+    if (uploadedBy && uploadedBy === userEmail) return true;
+    return false;
+  };
 
   // 1. LISTEN TO FIRESTORE: Live Real-Time sync with `media_assets`
   useEffect(() => {
@@ -178,6 +196,7 @@ export function MediaAssetHubModule() {
             driveFolder: d.driveFolder || 'Trio-INC-Drive / 02_PrintReady_Assets',
             driveLink: d.driveLink || d.driveUrl || d.previewUrl || '',
             driveUrl: d.driveUrl || d.driveLink || d.previewUrl || '',
+            fileId: d.fileId || '',
             previewUrl: d.previewUrl || d.downloadUrl || '',
             downloadUrl: d.downloadUrl || d.masterDownloadUrl || d.previewUrl || '',
             masterDownloadUrl: d.masterDownloadUrl || d.downloadUrl || d.previewUrl || '',
@@ -218,6 +237,7 @@ export function MediaAssetHubModule() {
               driveFolder: d.driveFolder || 'Trio-INC-Drive / 02_PrintReady_Assets',
               driveLink: d.driveLink || d.driveUrl || d.previewUrl || '',
               driveUrl: d.driveUrl || d.driveLink || d.previewUrl || '',
+              fileId: d.fileId || '',
               previewUrl: d.previewUrl || d.downloadUrl || '',
               downloadUrl: d.downloadUrl || d.masterDownloadUrl || d.previewUrl || '',
               masterDownloadUrl: d.masterDownloadUrl || d.downloadUrl || d.previewUrl || '',
@@ -247,6 +267,8 @@ export function MediaAssetHubModule() {
         const data = snap.data();
         if (data?.spotlightAssetId) {
           setPinnedSpotlightId(data.spotlightAssetId);
+        } else {
+          setPinnedSpotlightId(null);
         }
       }
     }, (err) => {
@@ -260,10 +282,10 @@ export function MediaAssetHubModule() {
   const spotlightAsset = useMemo(() => {
     if (assets.length === 0) return null;
     if (pinnedSpotlightId) {
-      const found = assets.find(a => a.id === pinnedSpotlightId);
+      const found = assets.find((a) => a.id === pinnedSpotlightId);
       if (found) return found;
     }
-    return assets.find(a => a.isFeatured || a.isSpotlight) || assets[0] || null;
+    return assets.find((a) => a.isFeatured || a.isSpotlight) || assets[0] || null;
   }, [assets, pinnedSpotlightId]);
 
   // Set as Hero Spotlight Handler
@@ -296,7 +318,88 @@ export function MediaAssetHubModule() {
     }
   };
 
-  // 4. BATCH MULTI-FILE UPLOAD LOGIC (Works seamlessly with Mobile File Picker & Desktop Drag & Drop)
+  // 4. SAFE DESIGN DELETION (HERO FALLBACK + GOOGLE DRIVE + FIRESTORE CLEANUP)
+  const handleConfirmDelete = async () => {
+    if (!assetToDelete) return;
+    setIsDeleting(true);
+
+    const targetId = assetToDelete.id;
+    const targetFileId = assetToDelete.fileId || assetToDelete.driveUrl || assetToDelete.driveLink || assetToDelete.previewUrl;
+    const wasHeroSpotlight = (spotlightAsset?.id === targetId) || (pinnedSpotlightId === targetId);
+
+    try {
+      // 1. Hero Spotlight Fallback Handling:
+      // If deleted asset was currently pinned as Hero Spotlight, automatically fallback to the next most recent uploaded asset
+      if (wasHeroSpotlight) {
+        const remaining = assets.filter((a) => a.id !== targetId);
+        const nextHero = remaining[0] || null;
+
+        if (nextHero) {
+          await setDoc(doc(db, 'system', 'media_settings'), {
+            spotlightAssetId: nextHero.id,
+            updatedAt: new Date().toISOString(),
+            updatedBy: teamMember?.displayName || 'Trio Member'
+          }, { merge: true });
+          setPinnedSpotlightId(nextHero.id);
+        } else {
+          await setDoc(doc(db, 'system', 'media_settings'), {
+            spotlightAssetId: null,
+            updatedAt: new Date().toISOString(),
+            updatedBy: teamMember?.displayName || 'Trio Member'
+          }, { merge: true });
+          setPinnedSpotlightId(null);
+        }
+      }
+
+      // 2. Call backend Google Drive deletion endpoint
+      const deleteResponse = await fetch('/api/drive/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId: targetFileId,
+          docId: targetId
+        })
+      });
+
+      if (!deleteResponse.ok) {
+        const errPayload = await deleteResponse.json().catch(() => ({}));
+        console.warn('Backend delete response info:', errPayload);
+      }
+
+      // 3. Client-side Firestore delete safeguard
+      try {
+        await deleteDoc(doc(db, 'media_assets', targetId));
+      } catch (err) {
+        console.warn('Client deleteDoc note:', err);
+      }
+
+      // 4. Close Lightbox Modal if the currently opened asset was deleted
+      if (lightboxAsset?.id === targetId) {
+        setLightboxAsset(null);
+      }
+
+      // 5. Real-time feedback toast
+      triggerToast({
+        type: 'system',
+        title: 'Design Removed',
+        snippet: '🗑️ Asset permanently removed from Workspace & Drive',
+        targetTab: 'media-hub'
+      });
+    } catch (err: any) {
+      console.error('Error during deletion:', err);
+      triggerToast({
+        type: 'system',
+        title: 'Delete Warning',
+        snippet: err?.message || 'Could not completely remove asset',
+        targetTab: 'media-hub'
+      });
+    } finally {
+      setIsDeleting(false);
+      setAssetToDelete(null);
+    }
+  };
+
+  // 5. BATCH MULTI-FILE UPLOAD LOGIC
   const handleUploadFiles = async (files: File[]) => {
     if (!files || files.length === 0) return;
     setIsUploadingBatch(true);
@@ -360,6 +463,7 @@ export function MediaAssetHubModule() {
           driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
           driveLink: driveData.previewUrl || driveData.downloadUrl,
           driveUrl: driveData.previewUrl || driveData.downloadUrl,
+          fileId: driveData.fileId || '',
           downloadUrl: driveData.downloadUrl,
           masterDownloadUrl: driveData.downloadUrl,
           previewUrl: driveData.previewUrl || driveData.downloadUrl,
@@ -458,6 +562,7 @@ export function MediaAssetHubModule() {
         driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
         driveLink: driveData.previewUrl || driveData.downloadUrl,
         driveUrl: driveData.previewUrl || driveData.downloadUrl,
+        fileId: driveData.fileId || '',
         downloadUrl: driveData.downloadUrl,
         masterDownloadUrl: driveData.downloadUrl,
         previewUrl: driveData.previewUrl || driveData.downloadUrl,
@@ -504,7 +609,7 @@ export function MediaAssetHubModule() {
     }
   };
 
-  // 5. INSTANT DIRECT DOWNLOAD HANDLER:
+  // 6. INSTANT DIRECT DOWNLOAD HANDLER
   const handleDownload = async (item: MediaAssetItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setIsDownloading(true);
@@ -795,7 +900,6 @@ export function MediaAssetHubModule() {
       {/* 1. DYNAMIC TOP HERO SPOTLIGHT BANNER */}
       {spotlightAsset ? (
         <section className="relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-slate-900/90 via-[#0d1322]/90 to-slate-950/90 shadow-2xl backdrop-blur-2xl p-6 sm:p-8 lg:p-10">
-          {/* Subtle Ambient Glowing Background Orb */}
           <div className="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-bl from-sky-500/20 via-indigo-500/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
@@ -944,6 +1048,18 @@ export function MediaAssetHubModule() {
                   <Share2 className="w-4 h-4 text-slate-400" />
                   <span className="hidden sm:inline">Drive Share</span>
                 </button>
+
+                {/* Safe Delete Hero Button for Admin or Original Uploader */}
+                {canDeleteAsset(spotlightAsset) && (
+                  <button
+                    onClick={() => setAssetToDelete(spotlightAsset)}
+                    className="cursor-pointer min-h-[46px] px-3.5 py-3 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/25 text-xs font-bold transition-all flex items-center gap-2"
+                    title="Permanently remove design from Drive and Hub"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Delete File</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1112,6 +1228,8 @@ export function MediaAssetHubModule() {
         <div className="columns-2 md:columns-3 lg:columns-4 gap-5 space-y-5">
           {filteredAssets.map((asset) => {
             const isHeroPinned = spotlightAsset?.id === asset.id;
+            const userCanDelete = canDeleteAsset(asset);
+
             return (
               <motion.article
                 key={asset.id}
@@ -1159,8 +1277,8 @@ export function MediaAssetHubModule() {
                     )}
                   </div>
 
-                  {/* Pin to Hero Spotlight Button (Top Action) */}
-                  <div className="absolute top-12 right-3 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Top Right Action Overlay: Pin to Hero & Safe Trash/Delete Button */}
+                  <div className="absolute top-12 right-3 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
                     <button
                       onClick={(e) => handleSetHeroSpotlight(asset, e)}
                       className="cursor-pointer p-2 rounded-xl bg-slate-950/90 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-white/20 transition-all shadow-xl active:scale-90"
@@ -1168,6 +1286,20 @@ export function MediaAssetHubModule() {
                     >
                       <Star className={`w-3.5 h-3.5 ${isHeroPinned ? 'fill-amber-400 text-amber-400' : ''}`} />
                     </button>
+
+                    {userCanDelete && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAssetToDelete(asset);
+                        }}
+                        className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-500/20 p-2 rounded-xl transition-all bg-slate-950/90 border border-red-500/30 shadow-xl"
+                        title="Delete this design from Drive"
+                        aria-label="Delete this design"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Bottom Floating Action Pill (Pinterest-style frosted glass strip) */}
@@ -1183,7 +1315,7 @@ export function MediaAssetHubModule() {
                         <span className="hidden sm:inline">Download</span>
                       </button>
 
-                      {/* Right icons: Lightbox & Share & Like */}
+                      {/* Right icons: Lightbox & Share & Like & Delete */}
                       <div className="flex items-center gap-1">
                         <button
                           onClick={(e) => {
@@ -1213,6 +1345,21 @@ export function MediaAssetHubModule() {
                           <Heart className="w-3.5 h-3.5 fill-rose-500/30" />
                           <span>{asset.likesCount}</span>
                         </button>
+
+                        {/* Red Delete Button on Card Pill */}
+                        {userCanDelete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAssetToDelete(asset);
+                            }}
+                            className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-500/20 p-2 rounded-xl transition-all"
+                            title="Delete this design from Drive"
+                            aria-label="Delete this design"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1243,9 +1390,23 @@ export function MediaAssetHubModule() {
                       <span>{isHeroPinned ? 'Active Hero' : '⭐ Set as Hero'}</span>
                     </button>
 
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {new Date(asset.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {new Date(asset.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                      {userCanDelete && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssetToDelete(asset);
+                          }}
+                          className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-500/20 p-1 rounded-lg transition-all"
+                          title="Delete design"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </motion.article>
@@ -1281,12 +1442,23 @@ export function MediaAssetHubModule() {
                 <div className="truncate font-bold text-xs text-white">
                   {lightboxAsset.title}
                 </div>
-                <button
-                  onClick={() => setLightboxAsset(null)}
-                  className="cursor-pointer p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {canDeleteAsset(lightboxAsset) && (
+                    <button
+                      onClick={() => setAssetToDelete(lightboxAsset)}
+                      className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-500/20 p-2 rounded-xl transition-all"
+                      title="Delete design"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setLightboxAsset(null)}
+                    className="cursor-pointer p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Main Image Viewer Section with Zoom Controls */}
@@ -1356,12 +1528,23 @@ export function MediaAssetHubModule() {
                     <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
                       Asset Specifications
                     </span>
-                    <button
-                      onClick={() => setLightboxAsset(null)}
-                      className="cursor-pointer p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {canDeleteAsset(lightboxAsset) && (
+                        <button
+                          onClick={() => setAssetToDelete(lightboxAsset)}
+                          className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-500/20 p-2 rounded-xl transition-all"
+                          title="Delete Design from Drive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setLightboxAsset(null)}
+                        className="cursor-pointer p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -1460,6 +1643,17 @@ export function MediaAssetHubModule() {
                       <span>Open in Drive</span>
                     </a>
                   </div>
+
+                  {/* Red Delete Button in Lightbox */}
+                  {canDeleteAsset(lightboxAsset) && (
+                    <button
+                      onClick={() => setAssetToDelete(lightboxAsset)}
+                      className="cursor-pointer w-full min-h-[40px] py-2 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 text-xs font-bold transition-all flex items-center justify-center gap-2 pt-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete Design from Drive &amp; Vault</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1738,6 +1932,81 @@ export function MediaAssetHubModule() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 7. SAFE DELETION CONFIRMATION DIALOG MODAL */}
+      <AnimatePresence>
+        {assetToDelete && (
+          <div 
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm Design Asset Deletion"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div 
+              onClick={() => !isDeleting && setAssetToDelete(null)}
+              className="absolute inset-0 cursor-pointer"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative z-10 w-full max-w-md rounded-3xl border border-red-500/30 bg-[#090d16] p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-red-500/15 text-red-400 border border-red-500/30">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Delete Design Permanently?</h3>
+                  <p className="text-xs text-slate-400">Google Drive &amp; Trio Hub Removal</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1">
+                <p className="font-bold text-white truncate">{assetToDelete.title}</p>
+                <p className="text-slate-400 text-[11px]">
+                  {assetToDelete.category} &bull; {assetToDelete.fileSize} &bull; {assetToDelete.format}
+                </p>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Delete this design? This will permanently remove the file from Trio INC. and Google Drive.
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setAssetToDelete(null)}
+                  className="cursor-pointer px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDelete}
+                  className="cursor-pointer min-h-[40px] px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs shadow-lg shadow-red-950/40 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Confirm Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

@@ -291,3 +291,29 @@ export async function uploadToAdminDrive(
     folderCategory
   );
 }
+
+/**
+ * Permanently deletes a file from the Admin's Google Drive.
+ */
+export async function deleteFromAdminDrive(fileId: string): Promise<boolean> {
+  if (!fileId || fileId.startsWith('admin_drive_') || fileId.startsWith('data:') || fileId.startsWith('file_')) {
+    return true;
+  }
+
+  const drive = getDriveClient();
+  if (!drive) {
+    return true;
+  }
+
+  try {
+    await drive.files.delete({ fileId });
+    return true;
+  } catch (err: any) {
+    // If already deleted or not found (404), treat as successful deletion
+    if (err?.code === 404 || err?.status === 404) {
+      return true;
+    }
+    console.warn(`Drive API delete warning for fileId ${fileId}:`, err?.message || err);
+    return false;
+  }
+}

@@ -232,6 +232,7 @@ export interface MediaAssetItem {
   driveFolder?: string;
   driveLink: string;
   driveUrl?: string;
+  fileId?: string;
   previewUrl: string;
   downloadUrl?: string;
   masterDownloadUrl: string;
