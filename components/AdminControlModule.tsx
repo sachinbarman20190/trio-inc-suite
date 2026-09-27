@@ -18,11 +18,12 @@ import {
   BellRing,
   Volume2,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 
 export function AdminControlModule() {
-  const { teamMember, isAdmin, whitelist, updateWhitelistMember } = useAuth();
+  const { teamMember, isAdmin, whitelist, updateWhitelistMember, signOut } = useAuth();
   const { 
     webNotificationsEnabled, 
     permissionStatus, 
@@ -321,6 +322,29 @@ export function AdminControlModule() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Account & Session Management */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <LogOut className="w-4 h-4 text-rose-400" />
+              Account & Session Management
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Securely terminate your current session on this device or switch between Sachin, Suraj, and Member 3 Google accounts.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="cursor-pointer min-h-[44px] px-5 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-rose-900/30 transition-all border border-rose-500/30 shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>🚪 Sign Out / Switch Account</span>
+          </button>
         </div>
       </div>
     </div>

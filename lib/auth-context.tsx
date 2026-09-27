@@ -90,7 +90,6 @@ export interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   isAuthenticated: boolean;
-  isAuthReady: boolean;
   isSigningIn: boolean;
 
   // Backward compatibility & team utilities
@@ -114,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [teamMember, setTeamMember] = useState<TeamMember | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [isUnauthorized, setIsUnauthorized] = useState<boolean>(false);
   const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
@@ -174,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initial auth session check safety timeout
   useEffect(() => {
     const timer = setTimeout(() => {
-      setIsAuthReady(true);
+      setIsLoading(false);
     }, 1500);
     return () => clearTimeout(timer);
   }, []);
@@ -194,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setCurrentUser(null);
             setTeamMember(null);
             setUserRole(null);
-            setIsAuthReady(true);
+            setIsLoading(false);
             setIsSigningIn(false);
 
             try {
@@ -214,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setCurrentUser(authUser);
           setTeamMember(memberData);
           setUserRole(assignedRole);
-          setIsAuthReady(true);
+          setIsLoading(false);
           setIsSigningIn(false);
 
           // Non-blocking sync to Firestore
@@ -224,12 +223,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setCurrentUser(null);
           setTeamMember(null);
           setUserRole(null);
-          setIsAuthReady(true);
+          setIsLoading(false);
           setIsSigningIn(false);
         }
       } catch (err) {
         console.error('Error handling auth state change:', err);
-        setIsAuthReady(true);
+        setIsLoading(false);
         setIsSigningIn(false);
       }
     });
@@ -243,7 +242,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsUnauthorized(false);
       setUnauthorizedEmail(null);
       
-      const result = await signInWithPopup(auth, googleProvider);
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      
+      const result = await signInWithPopup(auth, provider);
       const authUser = result.user;
 
       if (!authUser || !authUser.email) {
@@ -262,6 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTeamMember(null);
         setUserRole(null);
         setIsSigningIn(false);
+        setIsLoading(false);
 
         try {
           await fbSignOut(auth);
@@ -281,6 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTeamMember(memberData);
       setUserRole(assignedRole);
       setIsSigningIn(false);
+      setIsLoading(false);
 
       // Background non-blocking profile sync
       syncUserProfileToFirestore(authUser, assignedRole);
@@ -307,12 +311,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Sign-out error:', error);
     } finally {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (e) {
+          console.warn('Storage clear error:', e);
+        }
+      }
       setCurrentUser(null);
       setTeamMember(null);
       setUserRole(null);
       setIsUnauthorized(false);
       setUnauthorizedEmail(null);
       setIsSigningIn(false);
+      setIsLoading(false);
     }
   };
 
@@ -323,6 +336,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setTeamMember(null);
     setUserRole(null);
     setIsSigningIn(false);
+    setIsLoading(false);
   };
 
   const isWhitelisted = Boolean(
@@ -331,7 +345,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = Boolean(currentUser && isWhitelisted);
   const isAdmin = (userRole === 'admin') || (teamMember?.role === 'admin');
-  const isLoading = !isAuthReady || isSigningIn;
 
   return (
     <AuthContext.Provider
@@ -341,7 +354,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         isLoading,
         isAuthenticated,
-        isAuthReady,
         isSigningIn,
         // Backward-compatibility aliases
         user: currentUser,

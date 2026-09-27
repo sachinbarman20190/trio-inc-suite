@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/lib/auth-context';
 import { NotificationProvider, useNotification } from '@/lib/notification-context';
@@ -78,7 +78,9 @@ import {
   Menu,
   X,
   Search,
-  Bell
+  Bell,
+  ChevronDown,
+  UserCheck
 } from 'lucide-react';
 
 export default function Home() {
@@ -103,7 +105,6 @@ function DashboardView({
     userRole,
     isAdmin,
     isLoading,
-    isAuthReady,
     isSigningIn,
     user, 
     teamMember, 
@@ -119,6 +120,21 @@ function DashboardView({
 
   const { unreadCounts } = useNotification();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userProfileDropdownOpen, setUserProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close profile dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setUserProfileDropdownOpen(false);
+      }
+    }
+    if (userProfileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [userProfileDropdownOpen]);
 
   // Fast unified navigation handler: switches tab and closes More menu immediately
   const handleTabSwitch = (tab: DashboardModuleId) => {
@@ -166,7 +182,7 @@ function DashboardView({
   };
 
   // 1. Initial Splash Screen (only while checking existing Firebase Auth session on boot)
-  if (!isAuthReady) {
+  if (isLoading) {
     return (
       <main className="min-h-screen bg-[#070a12] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center space-y-4">
@@ -243,9 +259,9 @@ function DashboardView({
     );
   }
 
-  // 3. UNRESTRICTED LOGIN SCREEN:
-  // Render clean Material 3 Google Sign-In view immediately if unauthenticated
-  if (!currentUser || !isWhitelisted) {
+  // 3. AUTH GUARD GATEWAY:
+  // If !currentUser, strictly render the Login Landing Page. Do NOT render the operational dashboard under any circumstances.
+  if (!currentUser) {
     return (
       <main className="min-h-screen bg-[#070a12] flex items-center justify-center p-4 sm:p-6 font-sans selection:bg-sky-500 selection:text-white relative overflow-hidden">
         {/* Subtle background ambient gradients */}
@@ -405,48 +421,112 @@ function DashboardView({
               </span>
             </div>
 
-            {/* Active User Card & Sign In/Out */}
-            <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-900/90 border border-slate-800 px-2 sm:px-2.5 py-1 rounded-xl">
-              {currentUser?.photoURL ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img 
-                  src={currentUser.photoURL} 
-                  alt={teamMember?.displayName || 'User'} 
-                  referrerPolicy="no-referrer"
-                  className="w-6 h-6 rounded-full object-cover border border-sky-500/40 shrink-0" 
-                />
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold text-sky-400 shrink-0">
-                  {teamMember?.displayName.substring(0, 2).toUpperCase() || '3P'}
+            {/* Top Header User Pill & Profile Dropdown */}
+            <div className="relative" ref={profileDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setUserProfileDropdownOpen((prev) => !prev)}
+                className="cursor-pointer flex items-center gap-1.5 sm:gap-2.5 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl transition-all shadow-sm active:scale-[0.98]"
+                title="Account Profile & Sign Out"
+                aria-expanded={userProfileDropdownOpen}
+              >
+                {currentUser?.photoURL ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={currentUser.photoURL} 
+                    alt={teamMember?.displayName || 'User'} 
+                    referrerPolicy="no-referrer"
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border border-sky-500/40 shrink-0" 
+                  />
+                ) : (
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-white shadow-sm shrink-0">
+                    {teamMember?.displayName?.substring(0, 2).toUpperCase() || '3P'}
+                  </div>
+                )}
+                <div className="hidden sm:block text-left min-w-0">
+                  <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
+                    <span className="truncate max-w-[110px]">{teamMember?.displayName || currentUser?.displayName || 'Member'}</span>
+                    {isAdmin && <Shield className="w-3 h-3 text-amber-400 shrink-0" />}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono leading-tight truncate max-w-[120px]">
+                    {currentUser?.email || teamMember?.email}
+                  </div>
                 </div>
-              )}
-              <div className="hidden sm:block text-left">
-                <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                  {teamMember?.displayName}
-                  {isAdmin && <Shield className="w-3 h-3 text-amber-400" />}
-                </div>
-                <div className="text-[10px] text-slate-400 font-mono leading-tight">
-                  {teamMember?.email}
-                </div>
-              </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${userProfileDropdownOpen ? 'rotate-180 text-sky-400' : ''}`} />
+              </button>
 
-              {user ? (
-                <button
-                  onClick={() => signOut()}
-                  className="cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center p-1 text-slate-400 hover:text-red-400 transition-colors"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => signInWithGoogle()}
-                  className="cursor-pointer min-h-[32px] px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-colors shadow-sm"
-                  title="Sign In with Google"
-                >
-                  <LogIn className="w-3 h-3" />
-                  <span className="hidden sm:inline">Google Login</span>
-                </button>
+              {/* Material 3 Profile Dropdown */}
+              {userProfileDropdownOpen && (
+                <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-start gap-3 pb-3 border-b border-slate-800">
+                    {currentUser?.photoURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img 
+                        src={currentUser.photoURL} 
+                        alt={teamMember?.displayName || 'User'} 
+                        referrerPolicy="no-referrer"
+                        className="w-12 h-12 rounded-full object-cover border-2 border-sky-500/50 shadow-md shrink-0" 
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-md shrink-0">
+                        {teamMember?.displayName?.substring(0, 2).toUpperCase() || '3P'}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-white text-sm truncate">
+                          {teamMember?.displayName || currentUser?.displayName || 'Team Member'}
+                        </span>
+                        {isAdmin ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            Admin
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                            Member
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 font-mono break-all mt-0.5">
+                        {currentUser?.email || teamMember?.email}
+                      </p>
+                      {teamMember?.title && (
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                          {teamMember.title}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="py-2.5 text-[11px] text-slate-400 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span>Status:</span>
+                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Active & Verified
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Perimeter:</span>
+                      <span className="text-slate-300 font-mono text-[10px]">Trio INC. 3-Member POD</span>
+                    </div>
+                  </div>
+
+                  {/* Prominent Red Log Out / Switch Account Button */}
+                  <div className="pt-2 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setUserProfileDropdownOpen(false);
+                        await signOut();
+                      }}
+                      className="cursor-pointer w-full min-h-[44px] px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-rose-900/30 transition-all border border-rose-500/30"
+                    >
+                      <LogOut className="w-4 h-4 shrink-0" />
+                      <span>🚪 Log Out / Switch Account</span>
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -755,10 +835,10 @@ function DashboardView({
                     setMobileMenuOpen(false);
                     signOut();
                   }}
-                  className="cursor-pointer min-h-[36px] px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold rounded-lg flex items-center gap-1 shrink-0"
+                  className="cursor-pointer min-h-[38px] px-3 py-1.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-rose-900/30 transition-all border border-rose-500/30 shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Logout</span>
+                  <span>Log Out / Switch</span>
                 </button>
               </div>
             </div>

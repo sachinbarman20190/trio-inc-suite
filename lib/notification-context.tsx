@@ -363,8 +363,8 @@ export function NotificationProvider({
   // Broadcast a new meeting to all team members via Firestore & Auto Chat Broadcast
   const broadcastMeeting = useCallback(async (meetUrl: string, title: string = 'Trio Operations Sync') => {
     if (!teamMember) return;
-    const startedBy = teamMember.displayName || 'Sachin Barman';
-    const startedByEmail = teamMember.email || 'sachinbarman20190@gmail.com';
+    const startedBy = teamMember.displayName || 'Team Member';
+    const startedByEmail = teamMember.email;
     const meetingTitle = title.trim() || 'Trio Operations Sync';
 
     let formattedLink = meetUrl.trim();
