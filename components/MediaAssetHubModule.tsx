@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -27,207 +27,29 @@ import {
   Info,
   Tag,
   ExternalLink,
-  Printer
+  Printer,
+  Star,
+  FileCheck,
+  AlertCircle,
+  Loader2,
+  Trash2
 } from 'lucide-react';
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  onSnapshot, 
+  addDoc, 
+  doc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc,
+  increment 
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { useNotification } from '@/lib/notification-context';
 import { MediaAssetItem, MediaAssetCategory } from '@/lib/types';
-
-// Curated 8 realistic POD design mockup items
-const INITIAL_ASSETS: MediaAssetItem[] = [
-  {
-    id: 'asset-1',
-    title: 'CYBERPUNK SHINOBI // OVERSIZED GRAPHIC TEE',
-    category: 'T-Shirt Prints',
-    format: 'PNG',
-    resolution: '300 DPI CMYK',
-    dimensions: '4500 x 5400 px (15" × 18")',
-    fileSize: '28.4 MB',
-    fileSizeBytes: 28400000,
-    downloadsCount: 142,
-    likesCount: 56,
-    uploadedBy: 'Trio Studio Archive',
-    uploaderEmail: 'archive@trioinc.internal',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-    createdAt: '2026-09-24T18:30:00Z',
-    driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets / Oversized_Tees',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-cyberpunk-shinobi',
-    previewUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=2400&q=95',
-    tags: ['Oversized Tee', 'DTF 300 DPI', 'PNG 4K', 'Neon Graphic', 'Front Chest'],
-    isSpotlight: true,
-    colorway: 'Pitch Black / Neon Cyan',
-    mockupGarment: 'Heavyweight Box-Fit 260 GSM Tee'
-  },
-  {
-    id: 'asset-2',
-    title: 'TOKYO DRIFT KANJI ACID-WASH HOODIE',
-    category: 'Hoodies & Winter',
-    format: 'PSD',
-    resolution: '300 DPI High-Res',
-    dimensions: '5000 x 6000 px (16.6" × 20")',
-    fileSize: '44.2 MB',
-    fileSizeBytes: 44200000,
-    downloadsCount: 98,
-    likesCount: 42,
-    uploadedBy: 'Suraj Barman',
-    uploaderEmail: 'suraj.yt.science@gmail.com',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&q=80',
-    createdAt: '2026-09-23T14:15:00Z',
-    driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets / Hoodies_Winter',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-tokyo-drift-hoodie',
-    previewUrl: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=2400&q=95',
-    tags: ['Heavyweight Fleece', 'Acid Wash', 'Chest & Sleeve Hit', 'Streetwear Kanji'],
-    isSpotlight: false,
-    colorway: 'Washed Charcoal Grey',
-    mockupGarment: '400 GSM French Terry Hoodie'
-  },
-  {
-    id: 'asset-3',
-    title: 'VINTAGE RACING CLUB 1998 // VECTOR MASTER',
-    category: 'DTF Vectors',
-    format: 'AI',
-    resolution: '600 DPI Vector',
-    dimensions: 'Infinite Vector Scalable',
-    fileSize: '18.6 MB',
-    fileSizeBytes: 18600000,
-    downloadsCount: 115,
-    likesCount: 63,
-    uploadedBy: 'Trio Studio Archive',
-    uploaderEmail: 'archive@trioinc.internal',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-    createdAt: '2026-09-22T09:45:00Z',
-    driveFolder: 'Trio-INC-Drive / 03_Vector_Masters / Racing_Club',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-vintage-racing',
-    previewUrl: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=2400&q=95',
-    tags: ['Distressed Texture', 'Halftone Print', 'CMYK Ready', 'DTF Separation'],
-    isSpotlight: false,
-    colorway: 'Off-White Cream / Vintage Red',
-    mockupGarment: 'Vintage Washed Tee'
-  },
-  {
-    id: 'asset-4',
-    title: 'ACID MATRIX RETRO SUNSET // DROP-SHOULDER TEE',
-    category: 'T-Shirt Prints',
-    format: 'PNG',
-    resolution: '300 DPI CMYK',
-    dimensions: '4200 x 4800 px (14" × 16")',
-    fileSize: '22.8 MB',
-    fileSizeBytes: 22800000,
-    downloadsCount: 87,
-    likesCount: 39,
-    uploadedBy: 'Member 3',
-    uploaderEmail: 'member3@gmail.com',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&q=80',
-    createdAt: '2026-09-21T16:20:00Z',
-    driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets / Oversized_Tees',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-acid-matrix',
-    previewUrl: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=2400&q=95',
-    tags: ['Drop Shoulder', 'Vibrant Gradient', 'Sublimation + DTF', 'Summer Drop'],
-    isSpotlight: false,
-    colorway: 'Pure White / Purple Sunset Gradient',
-    mockupGarment: '240 GSM Combed Cotton Tee'
-  },
-  {
-    id: 'asset-5',
-    title: 'CYBER DRAGON MECHA // 3D MOCKUP RENDER PACK',
-    category: 'Mockup Renders',
-    format: 'PSD',
-    resolution: '4K Ultra-Sharp',
-    dimensions: '3840 x 2160 px (16:9)',
-    fileSize: '58.2 MB',
-    fileSizeBytes: 58200000,
-    downloadsCount: 167,
-    likesCount: 78,
-    uploadedBy: 'Trio Studio Archive',
-    uploaderEmail: 'archive@trioinc.internal',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-    createdAt: '2026-09-20T11:10:00Z',
-    driveFolder: 'Trio-INC-Drive / 01_Marketing_Mockups / 3D_Renders',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-dragon-mecha-mockup',
-    previewUrl: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=2400&q=95',
-    tags: ['Ghost Mannequin', 'Realistic Wrinkles', 'Smart Object', 'Website Hero'],
-    isSpotlight: false,
-    colorway: 'Matte Shadow Black',
-    mockupGarment: 'Studio 3D Mannequin Simulation'
-  },
-  {
-    id: 'asset-6',
-    title: 'STREETWEAR DROP CAMPAIGN POSTER 04',
-    category: 'Social Media / Posters',
-    format: 'TIFF',
-    resolution: '300 DPI Archival',
-    dimensions: '4000 x 5000 px (4:5 Ratio)',
-    fileSize: '36.1 MB',
-    fileSizeBytes: 36100000,
-    downloadsCount: 74,
-    likesCount: 31,
-    uploadedBy: 'Suraj Barman',
-    uploaderEmail: 'suraj.yt.science@gmail.com',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&q=80',
-    createdAt: '2026-09-19T20:00:00Z',
-    driveFolder: 'Trio-INC-Drive / 04_Social_Creatives / Posters',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-poster-drop4',
-    previewUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=2400&q=95',
-    tags: ['Story 9:16', 'Typography Grid', 'Feed Promo', 'Instagram Reel Cover'],
-    isSpotlight: false,
-    colorway: 'Editorial Cyan / Monochrome',
-    mockupGarment: 'High-Gloss Promo Poster'
-  },
-  {
-    id: 'asset-7',
-    title: 'NEO-TOKYO MECHA ANGEL // DTF FILM SEPARATION',
-    category: 'DTF Vectors',
-    format: 'SVG',
-    resolution: 'Vector DTF 600 DPI',
-    dimensions: 'Direct-to-Film 12" × 16"',
-    fileSize: '12.3 MB',
-    fileSizeBytes: 12300000,
-    downloadsCount: 130,
-    likesCount: 52,
-    uploadedBy: 'Trio Studio Archive',
-    uploaderEmail: 'archive@trioinc.internal',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-    createdAt: '2026-09-18T13:40:00Z',
-    driveFolder: 'Trio-INC-Drive / 03_Vector_Masters / DTF_Film_Separations',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-mecha-angel-dtf',
-    previewUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=2400&q=95',
-    tags: ['White Underbase', 'Choke Applied', 'Ready to Print', 'Anime Mech'],
-    isSpotlight: false,
-    colorway: 'Multi-Spot Neon Fluo',
-    mockupGarment: 'Direct-to-Film Transfer Sheet'
-  },
-  {
-    id: 'asset-8',
-    title: 'OBSIDIAN OVERSIZED BOX-FIT HOODIE MOCKUP',
-    category: 'Mockup Renders',
-    format: 'PSD',
-    resolution: '300 DPI Studio',
-    dimensions: '4800 x 4800 px (1:1 Square)',
-    fileSize: '52.7 MB',
-    fileSizeBytes: 52700000,
-    downloadsCount: 88,
-    likesCount: 45,
-    uploadedBy: 'Member 3',
-    uploaderEmail: 'member3@gmail.com',
-    uploaderAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&q=80',
-    createdAt: '2026-09-17T17:15:00Z',
-    driveFolder: 'Trio-INC-Drive / 01_Marketing_Mockups / Hoodies',
-    driveLink: 'https://drive.google.com/drive/folders/trio-inc-obsidian-hoodie',
-    previewUrl: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?w=1200&q=80',
-    masterDownloadUrl: 'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?w=2400&q=95',
-    tags: ['Front & Back', 'Displacement Map', 'Studio Light', 'E-Com Ready'],
-    isSpotlight: false,
-    colorway: 'Deep Obsidian Black',
-    mockupGarment: 'Boxy Heavyweight Hoodie'
-  }
-];
 
 const CATEGORIES: MediaAssetCategory[] = [
   'All Assets',
@@ -240,52 +62,577 @@ const CATEGORIES: MediaAssetCategory[] = [
 
 type SortOption = 'newest' | 'file-size' | 'popular' | 'title';
 
+interface UploadQueueItem {
+  id: string;
+  name: string;
+  size: string;
+  progress: number;
+  status: 'uploading' | 'completed' | 'error';
+  error?: string;
+}
+
+function formatFileSize(bytes: number): string {
+  if (!bytes || isNaN(bytes)) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function determineCategory(fileName: string, mimeType: string): MediaAssetItem['category'] {
+  const name = fileName.toLowerCase();
+  if (name.includes('hoodie') || name.includes('winter') || name.includes('fleece') || name.includes('jacket') || name.includes('sweatshirt')) {
+    return 'Hoodies & Winter';
+  }
+  if (name.includes('mockup') || name.includes('render') || name.includes('model') || name.includes('mannequin') || name.includes('simulation')) {
+    return 'Mockup Renders';
+  }
+  if (name.includes('poster') || name.includes('reel') || name.includes('story') || name.includes('ad') || name.includes('social') || name.includes('feed')) {
+    return 'Social Media / Posters';
+  }
+  if (name.includes('vector') || name.includes('dtf') || name.includes('film') || name.endsWith('.ai') || name.endsWith('.svg')) {
+    return 'DTF Vectors';
+  }
+  return 'T-Shirt Prints';
+}
+
+function determineFormat(fileName: string, mimeType: string): MediaAssetItem['format'] {
+  const ext = fileName.split('.').pop()?.toUpperCase() || '';
+  if (['PNG', 'PSD', 'AI', 'SVG', 'TIFF', 'PDF', 'JPG'].includes(ext)) {
+    return ext as any;
+  }
+  if (mimeType.includes('png')) return 'PNG';
+  if (mimeType.includes('svg')) return 'SVG';
+  if (mimeType.includes('pdf')) return 'PDF';
+  if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return 'JPG';
+  if (mimeType.includes('tiff')) return 'TIFF';
+  return 'PNG';
+}
+
 export function MediaAssetHubModule() {
-  const { teamMember } = useAuth();
+  const { teamMember, isAdmin } = useAuth();
   const { triggerToast } = useNotification();
 
-  // State
-  const [assets, setAssets] = useState<MediaAssetItem[]>(INITIAL_ASSETS);
+  // Firestore live assets state
+  const [assets, setAssets] = useState<MediaAssetItem[]>([]);
+  const [isLoadingAssets, setIsLoadingAssets] = useState<boolean>(true);
+  const [pinnedSpotlightId, setPinnedSpotlightId] = useState<string | null>(null);
+
+  // Filters & sorting
   const [selectedCategory, setSelectedCategory] = useState<MediaAssetCategory>('All Assets');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
-  
+
+  // Drag & drop & file upload state
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
+  const [isUploadingBatch, setIsUploadingBatch] = useState(false);
+  const [showQueueDrawer, setShowQueueDrawer] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // Lightbox Modal state
   const [lightboxAsset, setLightboxAsset] = useState<MediaAssetItem | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isCopied, setIsCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Upload Modal state
+  // Detailed Upload Modal state (for setting custom specs)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [customFile, setCustomFile] = useState<File | null>(null);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadCategory, setUploadCategory] = useState<MediaAssetItem['category']>('T-Shirt Prints');
   const [uploadFormat, setUploadFormat] = useState<MediaAssetItem['format']>('PNG');
   const [uploadResolution, setUploadResolution] = useState('300 DPI CMYK');
   const [uploadDimensions, setUploadDimensions] = useState('4500 x 5400 px');
   const [uploadTags, setUploadTags] = useState('Oversized Tee, DTF, Print Ready');
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isCustomUploading, setIsCustomUploading] = useState(false);
+  const [customProgress, setCustomProgress] = useState(0);
 
-  // Spotlight asset: first item with isSpotlight or first asset
+  // 1. LISTEN TO FIRESTORE: Live Real-Time sync with `media_assets`
+  useEffect(() => {
+    setIsLoadingAssets(true);
+    const assetsRef = collection(db, 'media_assets');
+    const q = query(assetsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const items: MediaAssetItem[] = [];
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data();
+          items.push({
+            id: docSnap.id,
+            title: d.title || 'UNTITLED ASSET',
+            category: d.category || 'T-Shirt Prints',
+            format: d.format || 'PNG',
+            resolution: d.resolution || '300 DPI CMYK',
+            dimensions: d.dimensions || 'High-Res Master',
+            fileSize: d.fileSize || 'Unknown Size',
+            fileSizeBytes: d.fileSizeBytes || 0,
+            downloadsCount: d.downloadsCount || 0,
+            likesCount: d.likesCount || 0,
+            uploadedBy: d.uploadedBy || 'Trio Member',
+            uploaderEmail: d.uploaderEmail || '',
+            uploaderAvatar: d.uploaderAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
+            createdAt: d.createdAt || d.uploadedAt || new Date().toISOString(),
+            uploadedAt: d.uploadedAt || d.createdAt || new Date().toISOString(),
+            driveFolder: d.driveFolder || 'Trio-INC-Drive / 02_PrintReady_Assets',
+            driveLink: d.driveLink || d.driveUrl || d.previewUrl || '',
+            driveUrl: d.driveUrl || d.driveLink || d.previewUrl || '',
+            previewUrl: d.previewUrl || d.downloadUrl || '',
+            downloadUrl: d.downloadUrl || d.masterDownloadUrl || d.previewUrl || '',
+            masterDownloadUrl: d.masterDownloadUrl || d.downloadUrl || d.previewUrl || '',
+            tags: Array.isArray(d.tags) ? d.tags : ['PrintReady'],
+            isSpotlight: Boolean(d.isSpotlight),
+            isFeatured: Boolean(d.isFeatured),
+            mimeType: d.mimeType || '',
+            colorway: d.colorway || 'Standard Print Ready',
+            mockupGarment: d.mockupGarment || 'Premium Print Garment'
+          });
+        });
+        setAssets(items);
+        setIsLoadingAssets(false);
+      },
+      (error) => {
+        console.warn('Real-time listener notice on media_assets, using direct query fallback:', error);
+        // Fallback without index requirement
+        const fallbackUnsub = onSnapshot(assetsRef, (snap) => {
+          const items: MediaAssetItem[] = [];
+          snap.forEach((docSnap) => {
+            const d = docSnap.data();
+            items.push({
+              id: docSnap.id,
+              title: d.title || 'UNTITLED ASSET',
+              category: d.category || 'T-Shirt Prints',
+              format: d.format || 'PNG',
+              resolution: d.resolution || '300 DPI CMYK',
+              dimensions: d.dimensions || 'High-Res Master',
+              fileSize: d.fileSize || 'Unknown Size',
+              fileSizeBytes: d.fileSizeBytes || 0,
+              downloadsCount: d.downloadsCount || 0,
+              likesCount: d.likesCount || 0,
+              uploadedBy: d.uploadedBy || 'Trio Member',
+              uploaderEmail: d.uploaderEmail || '',
+              uploaderAvatar: d.uploaderAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
+              createdAt: d.createdAt || d.uploadedAt || new Date().toISOString(),
+              uploadedAt: d.uploadedAt || d.createdAt || new Date().toISOString(),
+              driveFolder: d.driveFolder || 'Trio-INC-Drive / 02_PrintReady_Assets',
+              driveLink: d.driveLink || d.driveUrl || d.previewUrl || '',
+              driveUrl: d.driveUrl || d.driveLink || d.previewUrl || '',
+              previewUrl: d.previewUrl || d.downloadUrl || '',
+              downloadUrl: d.downloadUrl || d.masterDownloadUrl || d.previewUrl || '',
+              masterDownloadUrl: d.masterDownloadUrl || d.downloadUrl || d.previewUrl || '',
+              tags: Array.isArray(d.tags) ? d.tags : ['PrintReady'],
+              isSpotlight: Boolean(d.isSpotlight),
+              isFeatured: Boolean(d.isFeatured),
+              mimeType: d.mimeType || '',
+              colorway: d.colorway || 'Standard Print Ready',
+              mockupGarment: d.mockupGarment || 'Premium Print Garment'
+            });
+          });
+          items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setAssets(items);
+          setIsLoadingAssets(false);
+        });
+        return () => fallbackUnsub();
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. LISTEN TO SYSTEM SETTINGS FOR PINNED SPOTLIGHT HERO
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'system', 'media_settings'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.spotlightAssetId) {
+          setPinnedSpotlightId(data.spotlightAssetId);
+        }
+      }
+    }, (err) => {
+      console.warn('System media_settings info:', err);
+    });
+    return () => unsub();
+  }, []);
+
+  // 3. DYNAMIC HERO SPOTLIGHT DETERMINATION:
+  // Whichever asset is pinned (or has isSpotlight / isFeatured), otherwise defaults to the newest uploaded design
   const spotlightAsset = useMemo(() => {
-    return assets.find(a => a.isSpotlight) || assets[0];
-  }, [assets]);
+    if (assets.length === 0) return null;
+    if (pinnedSpotlightId) {
+      const found = assets.find(a => a.id === pinnedSpotlightId);
+      if (found) return found;
+    }
+    return assets.find(a => a.isFeatured || a.isSpotlight) || assets[0] || null;
+  }, [assets, pinnedSpotlightId]);
+
+  // Set as Hero Spotlight Handler
+  const handleSetHeroSpotlight = async (asset: MediaAssetItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      setPinnedSpotlightId(asset.id);
+      
+      // Update system settings document in Firestore
+      await setDoc(doc(db, 'system', 'media_settings'), {
+        spotlightAssetId: asset.id,
+        updatedAt: new Date().toISOString(),
+        updatedBy: teamMember?.displayName || 'Trio Member'
+      }, { merge: true });
+
+      // Also update asset record
+      await updateDoc(doc(db, 'media_assets', asset.id), {
+        isFeatured: true,
+        isSpotlight: true
+      });
+
+      triggerToast({
+        type: 'system',
+        title: '⭐ Hero Spotlight Updated',
+        snippet: `"${asset.title}" is now pinned to the top Hero Banner.`,
+        targetTab: 'media-hub'
+      });
+    } catch (err) {
+      console.error('Failed to set hero spotlight:', err);
+    }
+  };
+
+  // 4. BATCH MULTI-FILE UPLOAD LOGIC (Works seamlessly with Mobile File Picker & Desktop Drag & Drop)
+  const handleUploadFiles = async (files: File[]) => {
+    if (!files || files.length === 0) return;
+    setIsUploadingBatch(true);
+    setShowQueueDrawer(true);
+
+    const initialQueue: UploadQueueItem[] = files.map((f, i) => ({
+      id: `up-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
+      name: f.name,
+      size: formatFileSize(f.size),
+      progress: 15,
+      status: 'uploading' as const,
+    }));
+
+    setUploadQueue((prev) => [...initialQueue, ...prev]);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const qId = initialQueue[i].id;
+
+      try {
+        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, progress: 40 } : item));
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', 'media_assets');
+
+        const res = await fetch('/api/drive/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || `Upload failed with status ${res.status}`);
+        }
+
+        const json = await res.json();
+        const driveData = json.data;
+
+        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, progress: 85 } : item));
+
+        const titleClean = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').toUpperCase();
+        const category = determineCategory(file.name, file.type);
+        const format = determineFormat(file.name, file.type);
+
+        const assetDoc: Omit<MediaAssetItem, 'id'> = {
+          title: titleClean,
+          category,
+          format,
+          resolution: format === 'SVG' || format === 'AI' ? 'Vector Scalable' : '300 DPI CMYK',
+          dimensions: 'Print-Ready Master',
+          fileSize: formatFileSize(file.size),
+          fileSizeBytes: file.size,
+          downloadsCount: 0,
+          likesCount: 0,
+          uploadedBy: teamMember?.displayName || 'Trio Member',
+          uploaderEmail: teamMember?.email || '',
+          uploaderAvatar: teamMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
+          createdAt: new Date().toISOString(),
+          uploadedAt: new Date().toISOString(),
+          driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
+          driveLink: driveData.previewUrl || driveData.downloadUrl,
+          driveUrl: driveData.previewUrl || driveData.downloadUrl,
+          downloadUrl: driveData.downloadUrl,
+          masterDownloadUrl: driveData.downloadUrl,
+          previewUrl: driveData.previewUrl || driveData.downloadUrl,
+          tags: ['PrintReady', category, format],
+          isSpotlight: false,
+          isFeatured: false,
+          mimeType: file.type || 'application/octet-stream',
+          colorway: 'Standard Print Ready',
+          mockupGarment: category === 'Hoodies & Winter' ? '400 GSM Fleece Hoodie' : 'Heavyweight 240 GSM Tee',
+        };
+
+        const addedDocRef = await addDoc(collection(db, 'media_assets'), assetDoc);
+
+        // If this is the very first asset ever uploaded, auto-set as Hero Spotlight
+        if (assets.length === 0 && i === 0) {
+          await setDoc(doc(db, 'system', 'media_settings'), {
+            spotlightAssetId: addedDocRef.id,
+            updatedAt: new Date().toISOString(),
+            updatedBy: teamMember?.displayName || 'Trio Member'
+          }, { merge: true });
+        }
+
+        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, progress: 100, status: 'completed' } : item));
+
+        triggerToast({
+          type: 'system',
+          title: 'Asset Uploaded to 5 TB Drive',
+          snippet: `"${file.name}" saved to Google Drive and synced to team vault.`,
+          targetTab: 'media-hub'
+        });
+      } catch (err: any) {
+        console.error('File upload error:', err);
+        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, status: 'error', error: err?.message || 'Upload failed' } : item));
+        triggerToast({
+          type: 'system',
+          title: 'Upload Failed',
+          snippet: `Could not upload "${file.name}": ${err?.message || 'Network error'}`,
+          targetTab: 'media-hub'
+        });
+      }
+    }
+
+    setIsUploadingBatch(false);
+  };
+
+  // Custom Spec Modal Upload
+  const handleCustomUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customFile) {
+      triggerToast({
+        type: 'system',
+        title: 'File Required',
+        snippet: 'Please select a file to upload.',
+        targetTab: 'media-hub'
+      });
+      return;
+    }
+
+    setIsCustomUploading(true);
+    setCustomProgress(20);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', customFile);
+      formData.append('category', 'media_assets');
+
+      setCustomProgress(50);
+      const res = await fetch('/api/drive/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error('Upload to Drive failed');
+      }
+
+      setCustomProgress(85);
+      const json = await res.json();
+      const driveData = json.data;
+
+      const newAsset: Omit<MediaAssetItem, 'id'> = {
+        title: uploadTitle.trim().toUpperCase() || customFile.name.replace(/\.[^/.]+$/, '').toUpperCase(),
+        category: uploadCategory,
+        format: uploadFormat,
+        resolution: uploadResolution,
+        dimensions: uploadDimensions,
+        fileSize: formatFileSize(customFile.size),
+        fileSizeBytes: customFile.size,
+        downloadsCount: 0,
+        likesCount: 0,
+        uploadedBy: teamMember?.displayName || 'Trio Member',
+        uploaderEmail: teamMember?.email || '',
+        uploaderAvatar: teamMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
+        createdAt: new Date().toISOString(),
+        uploadedAt: new Date().toISOString(),
+        driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
+        driveLink: driveData.previewUrl || driveData.downloadUrl,
+        driveUrl: driveData.previewUrl || driveData.downloadUrl,
+        downloadUrl: driveData.downloadUrl,
+        masterDownloadUrl: driveData.downloadUrl,
+        previewUrl: driveData.previewUrl || driveData.downloadUrl,
+        tags: uploadTags.split(',').map((t) => t.trim()).filter(Boolean),
+        isSpotlight: false,
+        isFeatured: false,
+        mimeType: customFile.type || 'application/octet-stream',
+        colorway: 'Custom Print Ready',
+        mockupGarment: uploadCategory === 'Hoodies & Winter' ? '400 GSM Fleece Hoodie' : 'Heavyweight Box-Fit 260 GSM Tee'
+      };
+
+      const addedDoc = await addDoc(collection(db, 'media_assets'), newAsset);
+
+      if (assets.length === 0) {
+        await setDoc(doc(db, 'system', 'media_settings'), {
+          spotlightAssetId: addedDoc.id,
+          updatedAt: new Date().toISOString(),
+          updatedBy: teamMember?.displayName || 'Trio Member'
+        }, { merge: true });
+      }
+
+      setCustomProgress(100);
+      setIsUploadModalOpen(false);
+      setCustomFile(null);
+      setUploadTitle('');
+
+      triggerToast({
+        type: 'system',
+        title: 'Asset Uploaded to 5 TB Drive',
+        snippet: `"${newAsset.title}" published with custom specs.`,
+        targetTab: 'media-hub'
+      });
+    } catch (err: any) {
+      console.error('Custom upload error:', err);
+      triggerToast({
+        type: 'system',
+        title: 'Upload Failed',
+        snippet: err?.message || 'Failed to upload asset',
+        targetTab: 'media-hub'
+      });
+    } finally {
+      setIsCustomUploading(false);
+      setCustomProgress(0);
+    }
+  };
+
+  // 5. INSTANT DIRECT DOWNLOAD HANDLER:
+  const handleDownload = async (item: MediaAssetItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setIsDownloading(true);
+
+    try {
+      const targetUrl = item.downloadUrl || item.masterDownloadUrl || item.previewUrl;
+      const cleanFileName = item.title.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+      const ext = (item.format || 'png').toLowerCase();
+
+      if (targetUrl.startsWith('data:') || targetUrl.startsWith('blob:')) {
+        const link = document.createElement('a');
+        link.href = targetUrl;
+        link.download = `TrioINC_${cleanFileName}.${ext}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        try {
+          const response = await fetch(targetUrl);
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `TrioINC_${cleanFileName}.${ext}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch {
+          const link = document.createElement('a');
+          link.href = targetUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.download = `TrioINC_${cleanFileName}.${ext}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+
+      // Increment download counter in Firestore
+      try {
+        await updateDoc(doc(db, 'media_assets', item.id), {
+          downloadsCount: increment(1)
+        });
+      } catch (err) {
+        console.warn('Download counter notice:', err);
+      }
+
+      triggerToast({
+        type: 'system',
+        title: 'Master Print File Downloaded',
+        snippet: `${item.title} (${item.fileSize}) download initiated.`,
+        targetTab: 'media-hub'
+      });
+    } catch (err) {
+      console.error('Download error:', err);
+      window.open(item.downloadUrl || item.previewUrl, '_blank');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Like Toggle
+  const handleLike = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      await updateDoc(doc(db, 'media_assets', id), {
+        likesCount: increment(1)
+      });
+    } catch (err) {
+      console.warn('Like count notice:', err);
+    }
+  };
+
+  // Copy Link Handler
+  const handleCopyLink = async (item: MediaAssetItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      const link = item.driveUrl || item.driveLink || item.previewUrl;
+      await navigator.clipboard.writeText(link);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+      triggerToast({
+        type: 'system',
+        title: 'Drive Link Copied',
+        snippet: `Direct link for "${item.title}" copied to clipboard.`,
+        targetTab: 'media-hub'
+      });
+    } catch {
+      triggerToast({
+        type: 'system',
+        title: 'Drive Link Ready',
+        snippet: item.driveLink || item.previewUrl,
+        targetTab: 'media-hub'
+      });
+    }
+  };
+
+  // Lightbox Navigation
+  const handleNextLightbox = () => {
+    if (!lightboxAsset || filteredAssets.length === 0) return;
+    const currentIndex = filteredAssets.findIndex((a) => a.id === lightboxAsset.id);
+    const nextIndex = (currentIndex + 1) % filteredAssets.length;
+    setLightboxAsset(filteredAssets[nextIndex]);
+    setZoomLevel(1);
+  };
+
+  const handlePrevLightbox = () => {
+    if (!lightboxAsset || filteredAssets.length === 0) return;
+    const currentIndex = filteredAssets.findIndex((a) => a.id === lightboxAsset.id);
+    const prevIndex = (currentIndex - 1 + filteredAssets.length) % filteredAssets.length;
+    setLightboxAsset(filteredAssets[prevIndex]);
+    setZoomLevel(1);
+  };
 
   // Filtering & Sorting
   const filteredAssets = useMemo(() => {
-    return assets.filter(item => {
-      // Category filter
+    return assets.filter((item) => {
       if (selectedCategory !== 'All Assets' && item.category !== selectedCategory) {
         return false;
       }
-      // Search query filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesTitle = item.title.toLowerCase().includes(query);
         const matchesCategory = item.category.toLowerCase().includes(query);
         const matchesFormat = item.format.toLowerCase().includes(query);
-        const matchesTags = item.tags.some(t => t.toLowerCase().includes(query));
+        const matchesTags = item.tags.some((t) => t.toLowerCase().includes(query));
         const matchesUploader = item.uploadedBy.toLowerCase().includes(query);
         return matchesTitle || matchesCategory || matchesFormat || matchesTags || matchesUploader;
       }
@@ -312,168 +659,17 @@ export function MediaAssetHubModule() {
     const counts: Record<string, number> = {
       'All Assets': assets.length
     };
-    CATEGORIES.forEach(cat => {
+    CATEGORIES.forEach((cat) => {
       if (cat !== 'All Assets') {
-        counts[cat] = assets.filter(a => a.category === cat).length;
+        counts[cat] = assets.filter((a) => a.category === cat).length;
       }
     });
     return counts;
   }, [assets]);
 
-  // Download Trigger Handler
-  const handleDownload = async (item: MediaAssetItem, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setIsDownloading(true);
-
-    try {
-      // Simulate real download by fetching blob or opening master download url
-      const response = await fetch(item.previewUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const cleanFileName = item.title.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
-      link.download = `TrioINC_${cleanFileName}.${item.format.toLowerCase()}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      // Increment download counter
-      setAssets(prev => prev.map(a => a.id === item.id ? { ...a, downloadsCount: a.downloadsCount + 1 } : a));
-
-      triggerToast({
-        type: 'system',
-        title: 'Master Print File Downloaded',
-        snippet: `${item.title} (${item.fileSize} - ${item.format}) saved to local disk.`,
-        targetTab: 'media-hub'
-      });
-    } catch {
-      // Fallback
-      window.open(item.previewUrl, '_blank');
-      triggerToast({
-        type: 'system',
-        title: 'Master File Opened',
-        snippet: `${item.title} preview opened in new tab.`,
-        targetTab: 'media-hub'
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  // Like Toggle
-  const handleLike = (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setAssets(prev => prev.map(a => a.id === id ? { ...a, likesCount: a.likesCount + 1 } : a));
-  };
-
-  // Copy Link Handler
-  const handleCopyLink = async (item: MediaAssetItem, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(item.driveLink);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-      triggerToast({
-        type: 'system',
-        title: 'Drive Link Copied',
-        snippet: `Direct 5 TB Google Drive link for "${item.title}" copied to clipboard.`,
-        targetTab: 'media-hub'
-      });
-    } catch {
-      // Fallback
-      triggerToast({
-        type: 'system',
-        title: 'Drive Link Ready',
-        snippet: item.driveLink,
-        targetTab: 'media-hub'
-      });
-    }
-  };
-
-  // Lightbox Navigation
-  const handleNextLightbox = () => {
-    if (!lightboxAsset) return;
-    const currentIndex = filteredAssets.findIndex(a => a.id === lightboxAsset.id);
-    const nextIndex = (currentIndex + 1) % filteredAssets.length;
-    setLightboxAsset(filteredAssets[nextIndex]);
-    setZoomLevel(1);
-  };
-
-  const handlePrevLightbox = () => {
-    if (!lightboxAsset) return;
-    const currentIndex = filteredAssets.findIndex(a => a.id === lightboxAsset.id);
-    const prevIndex = (currentIndex - 1 + filteredAssets.length) % filteredAssets.length;
-    setLightboxAsset(filteredAssets[prevIndex]);
-    setZoomLevel(1);
-  };
-
-  // Mock Multi-file upload simulation
-  const handleSimulateUpload = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadTitle.trim()) return;
-
-    setIsUploading(true);
-    setUploadProgress(15);
-
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          return 95;
-        }
-        return prev + 25;
-      });
-    }, 200);
-
-    setTimeout(() => {
-      clearInterval(interval);
-      setUploadProgress(100);
-
-      const newAsset: MediaAssetItem = {
-        id: `asset-${Date.now()}`,
-        title: uploadTitle.trim().toUpperCase(),
-        category: uploadCategory,
-        format: uploadFormat,
-        resolution: uploadResolution,
-        dimensions: uploadDimensions,
-        fileSize: '34.8 MB',
-        fileSizeBytes: 34800000,
-        downloadsCount: 0,
-        likesCount: 1,
-        uploadedBy: teamMember?.displayName || 'Team Member',
-        uploaderEmail: teamMember?.email || '',
-        uploaderAvatar: teamMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-        createdAt: new Date().toISOString(),
-        driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets / New_Uploads',
-        driveLink: 'https://drive.google.com/drive/folders/trio-inc-new-uploads',
-        previewUrl: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=1200&q=80',
-        masterDownloadUrl: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=2400&q=95',
-        tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
-        isSpotlight: false,
-        colorway: 'Default Colorway',
-        mockupGarment: 'Premium Print Garment'
-      };
-
-      setAssets(prev => [newAsset, ...prev]);
-      setIsUploading(false);
-      setIsUploadModalOpen(false);
-      setUploadProgress(0);
-      setUploadTitle('');
-
-      triggerToast({
-        type: 'system',
-        title: 'Asset Uploaded to 5 TB Drive',
-        snippet: `"${newAsset.title}" is now synced across all 3 members.`,
-        targetTab: 'media-hub'
-      });
-    }, 1200);
-  };
-
-  // Helper for format badge styling
-  const getFormatBadge = (format: MediaAssetItem['format']) => {
-    switch (format) {
+  // Format badge helper
+  const getFormatBadge = (format: string) => {
+    switch (format.toUpperCase()) {
       case 'PNG':
         return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
       case 'PSD':
@@ -484,181 +680,319 @@ export function MediaAssetHubModule() {
         return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
       case 'TIFF':
         return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+      case 'PDF':
+        return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
       default:
-        return 'bg-slate-700/40 text-slate-300 border-slate-600';
+        return 'bg-slate-700 text-slate-300 border-slate-600';
     }
   };
 
   return (
-    <div className="space-y-8 select-none">
-      {/* 1. HERO SPOTLIGHT BANNER (TOP SECTION) */}
-      <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-indigo-950/50 to-slate-900/90 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden group">
-        {/* Ambient atmospheric liquid glow highlights */}
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent pointer-events-none" />
+    <div 
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragging(false);
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleUploadFiles(Array.from(e.dataTransfer.files));
+        }
+      }}
+      className="space-y-8 pb-16 relative"
+    >
+      {/* Hidden Mobile & Desktop Native File Picker */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*,.psd,.pdf,.svg,.ai,.tiff"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleUploadFiles(Array.from(e.target.files));
+            e.target.value = '';
+          }
+        }}
+        className="hidden"
+      />
 
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-          {/* Spotlight Mockup Image Preview */}
-          <div className="lg:col-span-5 relative">
-            <div 
-              onClick={() => {
-                setLightboxAsset(spotlightAsset);
-                setZoomLevel(1);
-              }}
-              className="relative aspect-[4/5] rounded-2xl overflow-hidden border border-white/15 bg-slate-950 shadow-2xl cursor-pointer group/spotlight transform transition-all duration-500 hover:scale-[1.02] hover:shadow-indigo-500/20"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src={spotlightAsset.previewUrl} 
-                alt={spotlightAsset.title}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover/spotlight:scale-105"
-              />
-
-              {/* Spotlight Live Status Pill */}
-              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-950/80 backdrop-blur-md border border-white/15 text-xs font-bold text-white shadow-lg">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="tracking-wide text-[11px]">SPOTLIGHT PRINT READY</span>
-              </div>
-
-              {/* File Specs Ribbon Bottom */}
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent p-4 flex items-center justify-between text-xs text-slate-300">
-                <span className="font-mono text-sky-300 font-semibold">{spotlightAsset.dimensions}</span>
-                <span className="px-2 py-0.5 rounded-md bg-white/10 text-white font-mono text-[11px] font-bold">
-                  {spotlightAsset.resolution}
-                </span>
-              </div>
-            </div>
+      {/* Desktop Drag & Drop Visual Hover Feedback Overlay */}
+      {isDragging && (
+        <div className="fixed inset-0 z-50 bg-sky-950/85 backdrop-blur-md border-4 border-dashed border-sky-400 flex flex-col items-center justify-center p-6 text-center pointer-events-none animate-in fade-in duration-150">
+          <div className="p-5 rounded-3xl bg-sky-500/20 text-sky-400 mb-4 animate-bounce border border-sky-400/30 shadow-2xl">
+            <UploadCloud className="w-16 h-16" />
           </div>
+          <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            Drop Design Assets to Upload
+          </h3>
+          <p className="text-sm text-sky-200 mt-2 max-w-md">
+            Direct streaming to Sachin&apos;s 5 TB root Google Drive. Batch upload PNG, PSD, AI, SVG, or TIFF.
+          </p>
+          <div className="mt-4 flex items-center gap-2 text-xs font-mono bg-sky-900/70 px-4 py-2 rounded-xl text-sky-300 border border-sky-500/40">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Multiple files will be batched simultaneously</span>
+          </div>
+        </div>
+      )}
 
-          {/* Spotlight Information & Primary Action Controls */}
-          <div className="lg:col-span-7 space-y-5">
-            {/* Header Badge & Sync Status */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                  Latest Approved Design
-                </span>
-                <span className="text-xs text-slate-400 hidden sm:inline">&bull; Direct 5 TB Google Drive v3</span>
-              </div>
+      {/* TOP HEADER CONTROLS & BATCH UPLOAD TRIGGER */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800 rounded-3xl p-5 sm:p-6 backdrop-blur-xl">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+              <span className="p-2 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/25">
+                <FolderGit2 className="w-5 h-5" />
+              </span>
+              Media Asset Hub
+            </h1>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
+              LIVE FIRESTORE
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Pinterest-style POD design library &bull; Synced with Sachin&apos;s 5 TB Drive Quota
+          </p>
+        </div>
 
-              {/* Multi-file Upload trigger button */}
-              <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="cursor-pointer min-h-[40px] px-4 py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold rounded-2xl transition-all shadow-lg shadow-sky-500/20 flex items-center gap-2 active:scale-95 shrink-0"
-              >
+        {/* Action Buttons: Native Multi-File Picker & Custom Spec Modal */}
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingBatch}
+            className="flex-1 sm:flex-initial cursor-pointer min-h-[44px] px-5 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold rounded-2xl transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+            title="Open native file picker for multiple files (Phone & Desktop)"
+          >
+            {isUploadingBatch ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Uploading...</span>
+              </>
+            ) : (
+              <>
                 <UploadCloud className="w-4 h-4" />
                 <span>+ Upload Assets to Drive</span>
-              </button>
-            </div>
+              </>
+            )}
+          </button>
 
-            {/* Design Title */}
-            <div>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight">
-                {spotlightAsset.title}
-              </h2>
-              <p className="text-sm text-slate-300 mt-1.5 flex items-center gap-2">
-                <FolderGit2 className="w-4 h-4 text-sky-400" />
-                <span className="font-mono text-xs text-slate-400 truncate">{spotlightAsset.driveFolder}</span>
-              </p>
-            </div>
+          <button
+            onClick={() => setIsUploadModalOpen(true)}
+            className="cursor-pointer min-h-[44px] px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-2xl border border-white/10 transition-colors flex items-center justify-center gap-1.5"
+            title="Upload with custom DPI, dimensions, tags"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden md:inline">Custom Form</span>
+          </button>
+        </div>
+      </div>
 
-            {/* Tag Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              {spotlightAsset.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 transition-colors"
-                >
-                  #{tag}
-                </span>
-              ))}
-              <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${getFormatBadge(spotlightAsset.format)}`}>
-                {spotlightAsset.format}
-              </span>
-              <span className="px-2.5 py-1 rounded-xl text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                {spotlightAsset.fileSize}
-              </span>
-            </div>
+      {/* 1. DYNAMIC TOP HERO SPOTLIGHT BANNER */}
+      {spotlightAsset ? (
+        <section className="relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-slate-900/90 via-[#0d1322]/90 to-slate-950/90 shadow-2xl backdrop-blur-2xl p-6 sm:p-8 lg:p-10">
+          {/* Subtle Ambient Glowing Background Orb */}
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-bl from-sky-500/20 via-indigo-500/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-            {/* Uploader Avatar Chip & Print Specs Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-900/60 border border-white/10">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                  src={spotlightAsset.uploaderAvatar} 
-                  alt={spotlightAsset.uploadedBy}
-                  referrerPolicy="no-referrer"
-                  className="w-10 h-10 rounded-xl object-cover border border-sky-400/40 shrink-0"
-                />
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-white truncate">{spotlightAsset.uploadedBy}</div>
-                  <div className="text-[11px] text-slate-400 truncate">{spotlightAsset.uploaderEmail}</div>
-                  <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                    Lead Designer
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-900/60 border border-white/10 flex flex-col justify-center text-xs space-y-1">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span>Garment Preset:</span>
-                  <span className="text-white font-medium truncate max-w-[140px]">{spotlightAsset.mockupGarment}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400">
-                  <span>Colorway:</span>
-                  <span className="text-sky-300 font-medium truncate max-w-[140px]">{spotlightAsset.colorway}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400">
-                  <span>Production Status:</span>
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Ready
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Primary Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3 pt-3">
-              <button
-                onClick={(e) => handleDownload(spotlightAsset, e)}
-                disabled={isDownloading}
-                className="cursor-pointer min-h-[46px] px-6 py-3 rounded-2xl bg-white hover:bg-slate-100 text-slate-950 font-bold text-sm transition-all shadow-xl hover:shadow-2xl flex items-center gap-2.5 active:scale-95 disabled:opacity-75"
-              >
-                <Download className="w-4 h-4 text-indigo-600" />
-                <span>⚡ Quick HD Download ({spotlightAsset.fileSize})</span>
-              </button>
-
-              <button
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+            {/* Visual Preview Box */}
+            <div className="lg:col-span-5">
+              <div 
                 onClick={() => {
                   setLightboxAsset(spotlightAsset);
                   setZoomLevel(1);
                 }}
-                className="cursor-pointer min-h-[46px] px-5 py-3 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-white font-semibold text-sm transition-all border border-white/10 flex items-center gap-2 active:scale-95"
+                className="cursor-pointer group/spotlight relative rounded-3xl overflow-hidden border border-white/20 bg-slate-950 shadow-2xl aspect-[4/5] sm:aspect-square flex items-center justify-center"
               >
-                <Maximize2 className="w-4 h-4 text-sky-400" />
-                <span>🔍 Inspect Details</span>
-              </button>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={spotlightAsset.previewUrl} 
+                  alt={spotlightAsset.title}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover/spotlight:scale-105"
+                />
 
+                {/* Spotlight Status Badge */}
+                <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-amber-500/30 text-xs font-bold text-amber-300 shadow-xl">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 animate-pulse" />
+                  <span className="tracking-wide text-[11px] font-black uppercase">HERO SPOTLIGHT DESIGN</span>
+                </div>
+
+                {/* File Specs Ribbon Bottom */}
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/95 via-slate-950/70 to-transparent p-4 flex items-center justify-between text-xs text-slate-300">
+                  <span className="font-mono text-sky-300 font-semibold">{spotlightAsset.dimensions}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-white/10 text-white font-mono text-[11px] font-bold">
+                    {spotlightAsset.resolution}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Spotlight Information & Action Controls */}
+            <div className="lg:col-span-7 space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    Pinned Hero Design
+                  </span>
+                  <span className="text-xs text-slate-400 hidden sm:inline">&bull; Direct 5 TB Google Drive v3</span>
+                </div>
+
+                <div className="text-[11px] text-slate-400 font-mono">
+                  Uploaded: {new Date(spotlightAsset.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              </div>
+
+              {/* Design Title */}
+              <div>
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight">
+                  {spotlightAsset.title}
+                </h2>
+                <p className="text-sm text-slate-300 mt-1.5 flex items-center gap-2">
+                  <FolderGit2 className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span className="font-mono text-xs text-slate-400 truncate">{spotlightAsset.driveFolder}</span>
+                </p>
+              </div>
+
+              {/* Tag Pills */}
+              <div className="flex flex-wrap items-center gap-2">
+                {spotlightAsset.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 transition-colors"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+                <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${getFormatBadge(spotlightAsset.format)}`}>
+                  {spotlightAsset.format}
+                </span>
+                <span className="px-2.5 py-1 rounded-xl text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {spotlightAsset.fileSize}
+                </span>
+              </div>
+
+              {/* Uploader Avatar Chip & Print Specs Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-900/60 border border-white/10">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img 
+                    src={spotlightAsset.uploaderAvatar} 
+                    alt={spotlightAsset.uploadedBy}
+                    referrerPolicy="no-referrer"
+                    className="w-10 h-10 rounded-xl object-cover border border-sky-400/40 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-white truncate">{spotlightAsset.uploadedBy}</div>
+                    <div className="text-[11px] text-slate-400 truncate">{spotlightAsset.uploaderEmail}</div>
+                    <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                      Team Member
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-900/60 border border-white/10 flex flex-col justify-center text-xs space-y-1">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span>Garment Preset:</span>
+                    <span className="text-white font-medium truncate max-w-[140px]">{spotlightAsset.mockupGarment}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span>Colorway:</span>
+                    <span className="text-sky-300 font-medium truncate max-w-[140px]">{spotlightAsset.colorway}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span>Production Status:</span>
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Ready
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Primary Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-3">
+                <button
+                  onClick={(e) => handleDownload(spotlightAsset, e)}
+                  disabled={isDownloading}
+                  className="cursor-pointer min-h-[46px] px-6 py-3 rounded-2xl bg-white hover:bg-slate-100 text-slate-950 font-bold text-sm transition-all shadow-xl hover:shadow-2xl flex items-center gap-2.5 active:scale-95 disabled:opacity-75"
+                >
+                  <Download className="w-4 h-4 text-indigo-600" />
+                  <span>⚡ Quick HD Download ({spotlightAsset.fileSize})</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setLightboxAsset(spotlightAsset);
+                    setZoomLevel(1);
+                  }}
+                  className="cursor-pointer min-h-[46px] px-5 py-3 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-white font-semibold text-sm transition-all border border-white/10 flex items-center gap-2 active:scale-95"
+                >
+                  <Maximize2 className="w-4 h-4 text-sky-400" />
+                  <span>🔍 Inspect Details</span>
+                </button>
+
+                <button
+                  onClick={(e) => handleCopyLink(spotlightAsset, e)}
+                  className="cursor-pointer min-h-[46px] px-4 py-3 rounded-2xl bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white transition-all border border-white/10 flex items-center gap-2 text-xs"
+                  title="Copy Google Drive Direct Link"
+                >
+                  <Share2 className="w-4 h-4 text-slate-400" />
+                  <span className="hidden sm:inline">Drive Share</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : !isLoadingAssets ? (
+        /* Empty State Hero Banner when no assets exist yet */
+        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 via-indigo-950/20 to-slate-900/90 p-8 sm:p-12 text-center relative overflow-hidden backdrop-blur-xl">
+          <div className="max-w-xl mx-auto space-y-5">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center mx-auto shadow-xl shadow-sky-500/25 animate-pulse">
+              <UploadCloud className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                POD Media Asset Vault // 5 TB Drive
+              </h2>
+              <p className="text-sm text-slate-300 mt-2 leading-relaxed">
+                No design assets uploaded yet. Start uploading your master prints, oversized t-shirt mockups, vector artwork, or ad reels to sync across all 3 members.
+              </p>
+            </div>
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
               <button
-                onClick={(e) => handleCopyLink(spotlightAsset, e)}
-                className="cursor-pointer min-h-[46px] px-4 py-3 rounded-2xl bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-white transition-all border border-white/10 flex items-center gap-2 text-xs"
-                title="Copy Google Drive Direct Link"
+                onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer min-h-[46px] px-6 py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm shadow-xl shadow-sky-500/25 flex items-center gap-2 active:scale-95 transition-all"
               >
-                <Share2 className="w-4 h-4 text-slate-400" />
-                <span className="hidden sm:inline">Drive Share</span>
+                <UploadCloud className="w-4 h-4" />
+                <span>+ Upload Your First Design</span>
+              </button>
+              <button
+                onClick={() => setIsUploadModalOpen(true)}
+                className="cursor-pointer min-h-[46px] px-5 py-3 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-sm font-semibold border border-white/10 flex items-center gap-2 transition-all"
+              >
+                <FileText className="w-4 h-4 text-sky-400" />
+                <span>Custom Spec Form</span>
               </button>
             </div>
           </div>
+        </section>
+      ) : (
+        /* Loading skeleton */
+        <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-12 text-center flex flex-col items-center justify-center space-y-3">
+          <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
+          <p className="text-xs text-slate-400 font-mono">Loading real-time assets from Firestore...</p>
         </div>
-      </section>
+      )}
 
-      {/* 2. TOP CATEGORY & FILTER PILL BAR */}
+      {/* 2. CATEGORY FILTER PILL BAR & SEARCH CONTROLS */}
       <section className="space-y-4">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          {/* Floating Horizontal Scrolling Pills */}
+          {/* Horizontal Scrolling Category Pills */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-1 -mx-2 px-2 touch-pan-x">
             {CATEGORIES.map((cat) => {
               const count = categoryCounts[cat] || 0;
@@ -686,7 +1020,6 @@ export function MediaAssetHubModule() {
 
           {/* Search Box & Sort Options */}
           <div className="flex items-center gap-3 shrink-0">
-            {/* Glass Search Input */}
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               <input
@@ -706,7 +1039,6 @@ export function MediaAssetHubModule() {
               )}
             </div>
 
-            {/* Sorting Dropdown */}
             <div className="relative shrink-0">
               <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-slate-900/70 border border-white/10 text-xs text-slate-300 min-h-[42px]">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -748,29 +1080,38 @@ export function MediaAssetHubModule() {
 
       {/* 3. PINTEREST-STYLE DYNAMIC MASONRY / RESPONSIVE GRID */}
       {filteredAssets.length === 0 ? (
-        <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-12 text-center space-y-4">
+        <div className="rounded-3xl border border-dashed border-white/15 bg-slate-900/40 p-12 text-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
-            <Search className="w-8 h-8" />
+            <Search className="w-8 h-8 text-sky-400" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">No Design Assets Found</h3>
+            <h3 className="text-base font-bold text-white">
+              {assets.length === 0 ? 'No assets uploaded yet. Upload your first design!' : 'No Design Assets Found'}
+            </h3>
             <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-              We couldn&apos;t find any assets matching your search query or category filter.
+              {assets.length === 0
+                ? 'Drop your artwork anywhere on screen or tap the button below to upload directly to 5 TB Drive.'
+                : 'We couldn’t find any assets matching your search query or category filter.'}
             </p>
           </div>
           <button
             onClick={() => {
-              setSelectedCategory('All Assets');
-              setSearchQuery('');
+              if (assets.length === 0) {
+                fileInputRef.current?.click();
+              } else {
+                setSelectedCategory('All Assets');
+                setSearchQuery('');
+              }
             }}
-            className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition-colors"
+            className="cursor-pointer px-5 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md active:scale-95"
           >
-            Clear All Filters
+            {assets.length === 0 ? '+ Upload First Design' : 'Clear All Filters'}
           </button>
         </div>
       ) : (
         <div className="columns-2 md:columns-3 lg:columns-4 gap-5 space-y-5">
           {filteredAssets.map((asset) => {
+            const isHeroPinned = spotlightAsset?.id === asset.id;
             return (
               <motion.article
                 key={asset.id}
@@ -782,7 +1123,9 @@ export function MediaAssetHubModule() {
                   setLightboxAsset(asset);
                   setZoomLevel(1);
                 }}
-                className="break-inside-avoid rounded-3xl overflow-hidden border border-white/10 bg-slate-900/60 hover:bg-slate-800/80 transition-all duration-300 group shadow-lg hover:shadow-indigo-500/15 cursor-pointer relative"
+                className={`break-inside-avoid rounded-3xl overflow-hidden border bg-slate-900/60 hover:bg-slate-800/80 transition-all duration-300 group shadow-lg hover:shadow-indigo-500/15 cursor-pointer relative ${
+                  isHeroPinned ? 'border-amber-500/50 ring-2 ring-amber-500/20' : 'border-white/10'
+                }`}
               >
                 {/* Image Container with subtle zoom on hover */}
                 <div className="relative overflow-hidden bg-slate-950">
@@ -796,27 +1139,45 @@ export function MediaAssetHubModule() {
                   />
 
                   {/* Gradient shadow overlay for badge readability */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/40 pointer-events-none opacity-60 group-hover:opacity-80 transition-opacity" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/40 pointer-events-none opacity-60 group-hover:opacity-85 transition-opacity" />
 
-                  {/* Top Badge Overlays: File format badge & Resolution */}
+                  {/* Top Badge Overlays */}
                   <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-1 pointer-events-none">
                     <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black border backdrop-blur-md shadow-md ${getFormatBadge(asset.format)}`}>
                       {asset.format}
                     </span>
 
-                    <span className="px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold bg-slate-950/80 backdrop-blur-md text-slate-200 border border-white/15 shadow-md">
-                      {asset.resolution.split(' ')[0]} DPI
-                    </span>
+                    {isHeroPinned ? (
+                      <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-amber-500 text-slate-950 shadow-lg flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-slate-950" />
+                        SPOTLIGHT
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold bg-slate-950/80 backdrop-blur-md text-slate-200 border border-white/15 shadow-md">
+                        {asset.resolution.split(' ')[0]} DPI
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Pin to Hero Spotlight Button (Top Action) */}
+                  <div className="absolute top-12 right-3 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => handleSetHeroSpotlight(asset, e)}
+                      className="cursor-pointer p-2 rounded-xl bg-slate-950/90 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-white/20 transition-all shadow-xl active:scale-90"
+                      title="⭐ Set as Hero Spotlight"
+                    >
+                      <Star className={`w-3.5 h-3.5 ${isHeroPinned ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    </button>
                   </div>
 
                   {/* Bottom Floating Action Pill (Pinterest-style frosted glass strip) */}
                   <div className="absolute bottom-3 inset-x-3 pointer-events-auto">
-                    <div className="backdrop-blur-xl bg-slate-950/80 border border-white/15 shadow-2xl rounded-2xl p-1.5 flex items-center justify-between transition-all transform group-hover:translate-y-0 translate-y-1 group-hover:opacity-100 opacity-90">
+                    <div className="backdrop-blur-xl bg-slate-950/85 border border-white/15 shadow-2xl rounded-2xl p-1.5 flex items-center justify-between transition-all transform group-hover:translate-y-0 translate-y-1 group-hover:opacity-100 opacity-90">
                       {/* Download button */}
                       <button
                         onClick={(e) => handleDownload(asset, e)}
                         className="cursor-pointer min-h-[34px] px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                        title="Quick HD Download"
+                        title="Direct HD Download"
                       >
                         <Download className="w-3.5 h-3.5 text-indigo-600" />
                         <span className="hidden sm:inline">Download</span>
@@ -857,8 +1218,8 @@ export function MediaAssetHubModule() {
                   </div>
                 </div>
 
-                {/* Card Info: Clean typography with design title, date, and file size */}
-                <div className="p-4 space-y-2">
+                {/* Card Info */}
+                <div className="p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
                     <span className="text-sky-400 font-semibold">{asset.category}</span>
                     <span className="font-mono text-slate-400">{asset.fileSize}</span>
@@ -868,9 +1229,23 @@ export function MediaAssetHubModule() {
                     {asset.title}
                   </h3>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[10px] text-slate-400">
-                    <span className="truncate">{asset.uploadedBy}</span>
-                    <span className="font-mono">{new Date(asset.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                  {/* Card Action Row: Set as Hero Spotlight Pill & Date */}
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                    <button
+                      onClick={(e) => handleSetHeroSpotlight(asset, e)}
+                      className={`cursor-pointer px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1 ${
+                        isHeroPinned
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-white/10'
+                      }`}
+                    >
+                      <Star className={`w-3 h-3 ${isHeroPinned ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+                      <span>{isHeroPinned ? 'Active Hero' : '⭐ Set as Hero'}</span>
+                    </button>
+
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {new Date(asset.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
                   </div>
                 </div>
               </motion.article>
@@ -886,15 +1261,13 @@ export function MediaAssetHubModule() {
             role="dialog"
             aria-modal="true"
             aria-label="Design Asset Lightbox Inspection"
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-2xl flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden"
+            className="fixed inset-0 z-50 bg-black/92 backdrop-blur-2xl flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden"
           >
-            {/* Backdrop Dismiss Button */}
             <div 
               onClick={() => setLightboxAsset(null)}
               className="absolute inset-0 cursor-pointer"
             />
 
-            {/* Lightbox Dialog Container */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -903,7 +1276,7 @@ export function MediaAssetHubModule() {
               onClick={(e) => e.stopPropagation()}
               className="relative z-10 w-full max-w-6xl max-h-[92vh] rounded-3xl border border-white/15 bg-[#090d16]/98 shadow-2xl flex flex-col lg:flex-row overflow-hidden"
             >
-              {/* Top Bar for Mobile / Compact Header */}
+              {/* Top Bar for Mobile */}
               <div className="lg:hidden flex items-center justify-between p-4 border-b border-white/10 shrink-0">
                 <div className="truncate font-bold text-xs text-white">
                   {lightboxAsset.title}
@@ -918,7 +1291,6 @@ export function MediaAssetHubModule() {
 
               {/* Main Image Viewer Section with Zoom Controls */}
               <div className="flex-1 relative flex items-center justify-center p-4 bg-slate-950/80 overflow-hidden min-h-[350px] lg:min-h-[550px]">
-                {/* Previous / Next Asset Navigation Floating Buttons */}
                 <button
                   onClick={handlePrevLightbox}
                   className="cursor-pointer absolute left-4 z-20 w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-800 border border-white/15 text-white flex items-center justify-center transition-all shadow-xl active:scale-90"
@@ -935,10 +1307,10 @@ export function MediaAssetHubModule() {
                   <ChevronRight className="w-5 h-5" />
                 </button>
 
-                {/* Floating Zoom Action Toolbar */}
+                {/* Floating Zoom Toolbar */}
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-900/90 backdrop-blur-xl border border-white/15 text-xs text-slate-200 shadow-xl">
                   <button
-                    onClick={() => setZoomLevel(prev => Math.max(0.5, prev - 0.25))}
+                    onClick={() => setZoomLevel((prev) => Math.max(0.5, prev - 0.25))}
                     className="cursor-pointer p-1 rounded-lg hover:bg-white/10 transition-colors"
                     title="Zoom Out"
                   >
@@ -948,7 +1320,7 @@ export function MediaAssetHubModule() {
                     {Math.round(zoomLevel * 100)}%
                   </span>
                   <button
-                    onClick={() => setZoomLevel(prev => Math.min(3, prev + 0.25))}
+                    onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
                     className="cursor-pointer p-1 rounded-lg hover:bg-white/10 transition-colors"
                     title="Zoom In"
                   >
@@ -964,117 +1336,85 @@ export function MediaAssetHubModule() {
                   </button>
                 </div>
 
-                {/* Image Display */}
-                <div className="w-full h-full flex items-center justify-center overflow-auto p-4 cursor-grab active:cursor-grabbing">
+                {/* Main Image with Zoom Scale Transform */}
+                <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={lightboxAsset.previewUrl}
                     alt={lightboxAsset.title}
                     referrerPolicy="no-referrer"
-                    style={{
-                      transform: `scale(${zoomLevel})`,
-                      transition: 'transform 0.15s ease-out'
-                    }}
-                    className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl shadow-2xl origin-center"
+                    style={{ transform: `scale(${zoomLevel})` }}
+                    className="max-h-[75vh] w-auto object-contain transition-transform duration-200 select-none shadow-2xl rounded-2xl"
                   />
                 </div>
               </div>
 
-              {/* Side Panel with Full Metadata */}
-              <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-white/10 bg-slate-900/90 backdrop-blur-2xl p-6 flex flex-col justify-between overflow-y-auto max-h-[45vh] lg:max-h-[92vh]">
+              {/* Sidebar: Print Specifications & Master Actions */}
+              <div className="w-full lg:w-96 p-6 border-t lg:border-t-0 lg:border-l border-white/10 bg-[#090d16] flex flex-col justify-between overflow-y-auto">
                 <div className="space-y-5">
-                  {/* Header & Close */}
-                  <div className="hidden lg:flex items-center justify-between">
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      {lightboxAsset.category}
+                  <div className="hidden lg:flex items-center justify-between pb-3 border-b border-white/10">
+                    <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
+                      Asset Specifications
                     </span>
                     <button
                       onClick={() => setLightboxAsset(null)}
-                      className="cursor-pointer p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                      className="cursor-pointer p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Title & Production Tag */}
                   <div>
-                    <h3 className="text-lg font-black text-white leading-tight">
+                    <h3 className="text-lg font-black text-white leading-snug">
                       {lightboxAsset.title}
                     </h3>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                        <CheckCircle2 className="w-3 h-3" /> Approved for POD Production
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Google Drive Location */}
-                  <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-white/10 space-y-2">
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span className="flex items-center gap-1.5 text-sky-400 font-semibold">
-                        <HardDrive className="w-3.5 h-3.5" /> 5 TB Drive Repository
-                      </span>
-                      <button
-                        onClick={(e) => handleCopyLink(lightboxAsset, e)}
-                        className="cursor-pointer text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1"
-                      >
-                        {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                        <span>{isCopied ? 'Copied' : 'Copy Link'}</span>
-                      </button>
-                    </div>
-                    <p className="text-[11px] font-mono text-slate-300 break-all leading-relaxed">
-                      {lightboxAsset.driveFolder}
+                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                      <FolderGit2 className="w-3.5 h-3.5 text-sky-400" />
+                      <span className="font-mono truncate">{lightboxAsset.driveFolder}</span>
                     </p>
                   </div>
 
-                  {/* Technical Print Specifications */}
-                  <div className="space-y-2.5">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Info className="w-3.5 h-3.5" /> Print Specifications
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2.5 rounded-xl bg-slate-950/50 border border-white/5">
-                        <span className="text-slate-400 text-[10px] block">Master Format</span>
-                        <strong className="text-white font-mono">{lightboxAsset.format}</strong>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-slate-950/50 border border-white/5">
-                        <span className="text-slate-400 text-[10px] block">Print Resolution</span>
-                        <strong className="text-sky-300 font-mono">{lightboxAsset.resolution}</strong>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-slate-950/50 border border-white/5">
-                        <span className="text-slate-400 text-[10px] block">Pixel Canvas</span>
-                        <strong className="text-white font-mono truncate block">{lightboxAsset.dimensions}</strong>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-slate-950/50 border border-white/5">
-                        <span className="text-slate-400 text-[10px] block">Master File Size</span>
-                        <strong className="text-emerald-400 font-mono">{lightboxAsset.fileSize}</strong>
-                      </div>
+                  {/* Print Spec Grid */}
+                  <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-slate-900/80 border border-white/10 text-xs">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Format</span>
+                      <p className="text-white font-bold">{lightboxAsset.format}</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">File Size</span>
+                      <p className="text-emerald-400 font-mono font-bold">{lightboxAsset.fileSize}</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Resolution</span>
+                      <p className="text-white font-medium">{lightboxAsset.resolution}</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Dimensions</span>
+                      <p className="text-white font-mono text-[11px] truncate">{lightboxAsset.dimensions}</p>
                     </div>
                   </div>
 
-                  {/* Uploader Info */}
-                  <div className="p-3 rounded-2xl bg-slate-950/50 border border-white/5 flex items-center gap-3">
+                  {/* Uploader Details */}
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-900/60 border border-white/5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={lightboxAsset.uploaderAvatar}
                       alt={lightboxAsset.uploadedBy}
                       referrerPolicy="no-referrer"
-                      className="w-9 h-9 rounded-xl object-cover border border-sky-400/30 shrink-0"
+                      className="w-9 h-9 rounded-xl object-cover border border-sky-400/30"
                     />
-                    <div className="min-w-0 text-xs">
-                      <div className="font-bold text-white truncate">{lightboxAsset.uploadedBy}</div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-white truncate">{lightboxAsset.uploadedBy}</div>
                       <div className="text-[10px] text-slate-400 truncate">{lightboxAsset.uploaderEmail}</div>
                     </div>
                   </div>
 
                   {/* Tags */}
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5" /> Design Tags
-                    </h4>
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Metadata Tags</span>
                     <div className="flex flex-wrap gap-1.5">
                       {lightboxAsset.tags.map((t) => (
-                        <span key={t} className="px-2 py-0.5 rounded-lg bg-slate-800 text-[11px] text-slate-300 border border-white/5">
+                        <span key={t} className="px-2 py-0.5 rounded-lg text-[10px] bg-slate-800 text-slate-300 border border-white/5">
                           #{t}
                         </span>
                       ))}
@@ -1082,15 +1422,24 @@ export function MediaAssetHubModule() {
                   </div>
                 </div>
 
-                {/* Big Direct Download Master File Button */}
-                <div className="pt-6 space-y-2 shrink-0">
+                {/* Bottom Actions */}
+                <div className="pt-6 space-y-2.5">
+                  {/* Hero Spotlight Toggle in Lightbox */}
+                  <button
+                    onClick={(e) => handleSetHeroSpotlight(lightboxAsset, e)}
+                    className="cursor-pointer w-full min-h-[42px] py-2.5 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    <span>⭐ Set as Top Hero Spotlight</span>
+                  </button>
+
                   <button
                     onClick={(e) => handleDownload(lightboxAsset, e)}
                     disabled={isDownloading}
-                    className="cursor-pointer min-h-[48px] w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm transition-all shadow-xl shadow-sky-500/25 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-75"
+                    className="cursor-pointer w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95"
                   >
                     <Download className="w-4 h-4" />
-                    <span>Direct Download Master File ({lightboxAsset.fileSize})</span>
+                    <span>Download Master File ({lightboxAsset.fileSize})</span>
                   </button>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -1099,10 +1448,10 @@ export function MediaAssetHubModule() {
                       className="cursor-pointer min-h-[38px] py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border border-white/10"
                     >
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Drive Link</span>
+                      <span>{isCopied ? 'Copied!' : 'Copy Link'}</span>
                     </button>
                     <a
-                      href={lightboxAsset.driveLink}
+                      href={lightboxAsset.driveUrl || lightboxAsset.driveLink || lightboxAsset.previewUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="cursor-pointer min-h-[38px] py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border border-white/10"
@@ -1118,7 +1467,64 @@ export function MediaAssetHubModule() {
         )}
       </AnimatePresence>
 
-      {/* 5. MULTI-FILE UPLOAD TO GOOGLE DRIVE MODAL */}
+      {/* 5. FLOATING BATCH UPLOAD PROGRESS DRAWER */}
+      {uploadQueue.length > 0 && showQueueDrawer && (
+        <div className="fixed bottom-6 right-6 z-40 w-80 sm:w-96 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl p-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <UploadCloud className="w-4 h-4 text-sky-400" />
+              <span className="text-xs font-bold text-white">Batch Uploading to 5 TB Drive</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setUploadQueue([])}
+                className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-slate-800"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => setShowQueueDrawer(false)}
+                className="p-1 text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+            {uploadQueue.map((item) => (
+              <div key={item.id} className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-white font-medium truncate max-w-[180px]">{item.name}</span>
+                  <span className="text-[10px] font-mono text-slate-400">{item.size}</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      item.status === 'completed'
+                        ? 'bg-emerald-400'
+                        : item.status === 'error'
+                        ? 'bg-rose-500'
+                        : 'bg-gradient-to-r from-sky-500 to-indigo-600'
+                    }`}
+                    style={{ width: `${item.progress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">
+                    {item.status === 'completed' && <span className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Synced to Drive</span>}
+                    {item.status === 'error' && <span className="text-rose-400 font-semibold">{item.error || 'Failed'}</span>}
+                    {item.status === 'uploading' && <span className="text-sky-400 font-medium">Streaming to Drive API...</span>}
+                  </span>
+                  <span className="font-mono text-slate-400">{item.progress}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 6. DETAILED CUSTOM SPEC UPLOAD MODAL */}
       <AnimatePresence>
         {isUploadModalOpen && (
           <div 
@@ -1128,7 +1534,7 @@ export function MediaAssetHubModule() {
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto"
           >
             <div 
-              onClick={() => !isUploading && setIsUploadModalOpen(false)}
+              onClick={() => !isCustomUploading && setIsUploadModalOpen(false)}
               className="absolute inset-0 cursor-pointer"
             />
 
@@ -1145,11 +1551,11 @@ export function MediaAssetHubModule() {
                     <UploadCloud className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Upload Assets to 5 TB Drive</h3>
-                    <p className="text-xs text-slate-400">Direct streaming &amp; print file storage</p>
+                    <h3 className="text-base font-bold text-white">Upload Asset to 5 TB Drive</h3>
+                    <p className="text-xs text-slate-400">Custom specifications &amp; print readiness</p>
                   </div>
                 </div>
-                {!isUploading && (
+                {!isCustomUploading && (
                   <button
                     onClick={() => setIsUploadModalOpen(false)}
                     className="cursor-pointer p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
@@ -1159,16 +1565,49 @@ export function MediaAssetHubModule() {
                 )}
               </div>
 
-              <form onSubmit={handleSimulateUpload} className="space-y-4">
-                {/* Drag and Drop Zone */}
-                <div className="border-2 border-dashed border-white/20 hover:border-sky-500/50 rounded-2xl p-6 text-center bg-slate-900/40 hover:bg-slate-900/60 transition-all cursor-pointer">
+              <form onSubmit={handleCustomUploadSubmit} className="space-y-4">
+                {/* File Drop / Select Area */}
+                <div 
+                  onClick={() => {
+                    const tempInput = document.createElement('input');
+                    tempInput.type = 'file';
+                    tempInput.accept = 'image/*,.psd,.pdf,.svg,.ai,.tiff';
+                    tempInput.onchange = (e: any) => {
+                      if (e.target.files?.[0]) {
+                        const f = e.target.files[0];
+                        setCustomFile(f);
+                        if (!uploadTitle) {
+                          setUploadTitle(f.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').toUpperCase());
+                        }
+                        setUploadFormat(determineFormat(f.name, f.type));
+                        setUploadCategory(determineCategory(f.name, f.type));
+                      }
+                    };
+                    tempInput.click();
+                  }}
+                  className="border-2 border-dashed border-white/20 hover:border-sky-500/50 rounded-2xl p-6 text-center bg-slate-900/40 hover:bg-slate-900/60 transition-all cursor-pointer"
+                >
                   <UploadCloud className="w-8 h-8 text-sky-400 mx-auto mb-2 animate-bounce" />
-                  <p className="text-xs font-bold text-white">
-                    Drag and drop high-res PNG, PSD, AI or SVG files
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Direct sync to Sachin Barman&apos;s 5 TB root storage (Up to 2 GB per file)
-                  </p>
+                  {customFile ? (
+                    <div>
+                      <p className="text-xs font-bold text-emerald-400 flex items-center justify-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Selected: {customFile.name}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                        {formatFileSize(customFile.size)} &bull; Tap to change file
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-bold text-white">
+                        Click or drag high-res PNG, PSD, AI, SVG, PDF or TIFF
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Direct sync to Sachin Barman&apos;s 5 TB root storage (Up to 2 GB per file)
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Form Fields */}
@@ -1219,6 +1658,7 @@ export function MediaAssetHubModule() {
                         <option value="AI">AI (Illustrator)</option>
                         <option value="SVG">SVG (Vector)</option>
                         <option value="TIFF">TIFF (Archival)</option>
+                        <option value="PDF">PDF (Print Master)</option>
                       </select>
                     </div>
                   </div>
@@ -1264,17 +1704,17 @@ export function MediaAssetHubModule() {
                   </div>
                 </div>
 
-                {/* Upload Progress Bar */}
-                {isUploading && (
+                {/* Custom Upload Progress */}
+                {isCustomUploading && (
                   <div className="space-y-1.5 pt-2">
                     <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>Streaming to Google Drive API v3...</span>
-                      <span className="font-mono text-sky-400 font-bold">{uploadProgress}%</span>
+                      <span>Streaming to 5 TB Google Drive...</span>
+                      <span className="font-mono text-sky-400 font-bold">{customProgress}%</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
                       <div 
                         className="h-full bg-gradient-to-r from-sky-500 to-indigo-600 transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
+                        style={{ width: `${customProgress}%` }}
                       />
                     </div>
                   </div>
@@ -1283,7 +1723,7 @@ export function MediaAssetHubModule() {
                 <div className="flex items-center justify-end gap-3 pt-3">
                   <button
                     type="button"
-                    disabled={isUploading}
+                    disabled={isCustomUploading}
                     onClick={() => setIsUploadModalOpen(false)}
                     className="cursor-pointer px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
                   >
@@ -1291,10 +1731,10 @@ export function MediaAssetHubModule() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isUploading || !uploadTitle.trim()}
+                    disabled={isCustomUploading || !customFile}
                     className="cursor-pointer min-h-[42px] px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs transition-all shadow-md shadow-sky-500/20 active:scale-95 disabled:opacity-50"
                   >
-                    {isUploading ? 'Uploading to 5 TB Drive...' : 'Save & Publish Asset'}
+                    {isCustomUploading ? 'Uploading to 5 TB Drive...' : 'Save & Publish Asset'}
                   </button>
                 </div>
               </form>

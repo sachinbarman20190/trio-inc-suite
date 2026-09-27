@@ -216,8 +216,8 @@ export type MediaAssetCategory =
 export interface MediaAssetItem {
   id: string;
   title: string;
-  category: 'T-Shirt Prints' | 'Hoodies & Winter' | 'Mockup Renders' | 'Social Media / Posters' | 'DTF Vectors';
-  format: 'PNG' | 'PSD' | 'AI' | 'SVG' | 'TIFF';
+  category: 'T-Shirt Prints' | 'Hoodies & Winter' | 'Mockup Renders' | 'Social Media / Posters' | 'DTF Vectors' | 'General';
+  format: 'PNG' | 'PSD' | 'AI' | 'SVG' | 'TIFF' | 'PDF' | 'JPG' | string;
   resolution: string; // e.g. "300 DPI", "600 DPI Vector", "4K DTF"
   dimensions: string; // e.g. "4500 x 5400 px"
   fileSize: string; // e.g. "14.8 MB"
@@ -228,12 +228,17 @@ export interface MediaAssetItem {
   uploaderEmail: string;
   uploaderAvatar?: string;
   createdAt: string;
-  driveFolder: string;
+  uploadedAt?: string;
+  driveFolder?: string;
   driveLink: string;
+  driveUrl?: string;
   previewUrl: string;
+  downloadUrl?: string;
   masterDownloadUrl: string;
   tags: string[];
   isSpotlight?: boolean;
+  isFeatured?: boolean;
+  mimeType?: string;
   colorway?: string;
   mockupGarment?: string;
 }
