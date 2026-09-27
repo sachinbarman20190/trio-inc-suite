@@ -5,7 +5,8 @@ import {
   User, 
   signInWithPopup, 
   signOut as fbSignOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, googleProvider, db } from '@/lib/firebase';
@@ -326,6 +327,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUnauthorizedEmail(null);
       setIsSigningIn(false);
       setIsLoading(false);
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     }
   };
 

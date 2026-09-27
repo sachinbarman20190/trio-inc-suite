@@ -58,6 +58,8 @@ const AdminControlModule = dynamic(() => import('@/components/AdminControlModule
   loading: () => <ModuleLoadingFallback />,
 });
 import { motion, AnimatePresence } from 'motion/react';
+import { auth } from '@/lib/firebase';
+import { signOut as fbSignOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { 
   MessageSquare, 
   Video, 
@@ -122,6 +124,34 @@ function DashboardView({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userProfileDropdownOpen, setUserProfileDropdownOpen] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Complete bulletproof sign-out sequence with local storage purge and full window redirect
+  const handleLogout = async () => {
+    setUserProfileDropdownOpen(false);
+    try {
+      await fbSignOut(auth);
+    } catch (error) {
+      console.error("Sign out error:", error);
+    } finally {
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+        sessionStorage.clear();
+        // Force full window redirection to root to purge all in-memory React state
+        window.location.href = "/";
+      }
+    }
+  };
+
+  // Google Sign-In with forced account selection picker
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Google sign-in error:", error);
+    }
+  };
 
   // Close profile dropdown on click outside
   useEffect(() => {
@@ -260,8 +290,8 @@ function DashboardView({
   }
 
   // 3. AUTH GUARD GATEWAY:
-  // If !currentUser, strictly render the Login Landing Page. Do NOT render the operational dashboard under any circumstances.
-  if (!currentUser) {
+  // If !currentUser and !isLoading, strictly render the Login Landing Page. Do NOT render the operational dashboard under any circumstances.
+  if (!currentUser && !isLoading) {
     return (
       <main className="min-h-screen bg-[#070a12] flex items-center justify-center p-4 sm:p-6 font-sans selection:bg-sky-500 selection:text-white relative overflow-hidden">
         {/* Subtle background ambient gradients */}
@@ -296,7 +326,7 @@ function DashboardView({
           {/* Clean Material 3 Google Sign-In Button */}
           <div className="space-y-3 pt-1">
             <button
-              onClick={() => signInWithGoogle()}
+              onClick={handleGoogleLogin}
               disabled={isSigningIn}
               className="w-full min-h-[48px] cursor-pointer bg-white hover:bg-slate-100 text-slate-900 font-semibold text-sm sm:text-base rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed border border-slate-200"
             >
@@ -516,10 +546,7 @@ function DashboardView({
                   <div className="pt-2 border-t border-slate-800">
                     <button
                       type="button"
-                      onClick={async () => {
-                        setUserProfileDropdownOpen(false);
-                        await signOut();
-                      }}
+                      onClick={handleLogout}
                       className="cursor-pointer w-full min-h-[44px] px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-rose-900/30 transition-all border border-rose-500/30"
                     >
                       <LogOut className="w-4 h-4 shrink-0" />
@@ -833,7 +860,7 @@ function DashboardView({
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    signOut();
+                    handleLogout();
                   }}
                   className="cursor-pointer min-h-[38px] px-3 py-1.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-rose-900/30 transition-all border border-rose-500/30 shrink-0"
                 >
