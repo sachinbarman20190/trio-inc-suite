@@ -103,6 +103,8 @@ function DashboardView({
     userRole,
     isAdmin,
     isLoading,
+    isAuthReady,
+    isSigningIn,
     user, 
     teamMember, 
     isWhitelisted, 
@@ -154,15 +156,6 @@ function DashboardView({
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // 3-second hard timeout fallback: guarantees splash screen NEVER freezes indefinitely
-  const [authTimedOut, setAuthTimedOut] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setAuthTimedOut(true);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
   const handleInstallPWA = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -172,8 +165,8 @@ function DashboardView({
     }
   };
 
-  // 1. Splash Screen with 3-second hard timeout fallback
-  if (isLoading && !authTimedOut) {
+  // 1. Initial Splash Screen (only while checking existing Firebase Auth session on boot)
+  if (!isAuthReady) {
     return (
       <main className="min-h-screen bg-[#070a12] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center space-y-4">
@@ -288,7 +281,7 @@ function DashboardView({
           <div className="space-y-3 pt-1">
             <button
               onClick={() => signInWithGoogle()}
-              disabled={isLoading}
+              disabled={isSigningIn}
               className="w-full min-h-[48px] cursor-pointer bg-white hover:bg-slate-100 text-slate-900 font-semibold text-sm sm:text-base rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed border border-slate-200"
             >
               {/* Official Google Multicolor G Logo */}
@@ -310,7 +303,7 @@ function DashboardView({
                   d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.96 1.18 15.24 0 12 0 7.33 0 3.26 2.64 1.26 6.61l4.01 3.13c.95-2.85 3.6-4.97 6.73-4.97z"
                 />
               </svg>
-              <span>{isLoading ? 'Connecting to Google...' : 'Sign in with Google'}</span>
+              <span>{isSigningIn ? 'Connecting to Google...' : 'Sign in with Google'}</span>
             </button>
           </div>
 

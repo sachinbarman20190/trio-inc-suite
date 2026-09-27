@@ -41,10 +41,19 @@ export function buildTeamMember(
   const found = currentWhitelist.find((m) => m.email.trim().toLowerCase() === emailLower)
     || INITIAL_WHITELIST.find((m) => m.email.trim().toLowerCase() === emailLower);
 
-  const fallbackDisplayName = assignedRole === 'admin' ? 'Sachin Barman' : (user.displayName || 'Team Member');
+  const fallbackDisplayName = assignedRole === 'admin' 
+    ? 'Sachin Barman' 
+    : (emailLower === 'surajbarman50191@gmail.com' || emailLower === 'suraj.yt.science@gmail.com'
+        ? 'Suraj Barman'
+        : (user.displayName || 'Team Member'));
+
   const fallbackTitle = assignedRole === 'admin' 
     ? 'Founder & Admin (5 TB Drive Host)' 
-    : (emailLower.includes('50191') ? 'Operations & Production Lead' : (emailLower.includes('science') ? 'Research & Video Creative Lead' : 'Team Member'));
+    : (emailLower === 'surajbarman50191@gmail.com'
+        ? 'Operations & Production Lead'
+        : (emailLower === 'suraj.yt.science@gmail.com'
+            ? 'Research & Video Creative Lead'
+            : 'Team Member'));
 
   return {
     uid: user.uid,
@@ -81,6 +90,8 @@ export interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isAuthReady: boolean;
+  isSigningIn: boolean;
 
   // Backward compatibility & team utilities
   user: User | null;
@@ -103,7 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [teamMember, setTeamMember] = useState<TeamMember | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [isUnauthorized, setIsUnauthorized] = useState<boolean>(false);
   const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
 
@@ -159,11 +171,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     whitelistRef.current = whitelist;
   }, [whitelist]);
 
-  // Hard timeout fallback: guarantees splash screen never hangs
+  // Initial auth session check safety timeout
   useEffect(() => {
     const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2500);
+      setIsAuthReady(true);
+    }, 1500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -182,7 +194,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setCurrentUser(null);
             setTeamMember(null);
             setUserRole(null);
-            setIsLoading(false);
+            setIsAuthReady(true);
+            setIsSigningIn(false);
 
             try {
               await fbSignOut(auth);
@@ -201,7 +214,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setCurrentUser(authUser);
           setTeamMember(memberData);
           setUserRole(assignedRole);
-          setIsLoading(false);
+          setIsAuthReady(true);
+          setIsSigningIn(false);
 
           // Non-blocking sync to Firestore
           syncUserProfileToFirestore(authUser, assignedRole);
@@ -210,11 +224,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setCurrentUser(null);
           setTeamMember(null);
           setUserRole(null);
-          setIsLoading(false);
+          setIsAuthReady(true);
+          setIsSigningIn(false);
         }
       } catch (err) {
         console.error('Error handling auth state change:', err);
-        setIsLoading(false);
+        setIsAuthReady(true);
+        setIsSigningIn(false);
       }
     });
 
@@ -223,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      setIsLoading(true);
+      setIsSigningIn(true);
       setIsUnauthorized(false);
       setUnauthorizedEmail(null);
       
@@ -231,7 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const authUser = result.user;
 
       if (!authUser || !authUser.email) {
-        setIsLoading(false);
+        setIsSigningIn(false);
         return;
       }
 
@@ -245,7 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser(null);
         setTeamMember(null);
         setUserRole(null);
-        setIsLoading(false);
+        setIsSigningIn(false);
 
         try {
           await fbSignOut(auth);
@@ -264,19 +280,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(authUser);
       setTeamMember(memberData);
       setUserRole(assignedRole);
-      setIsLoading(false);
+      setIsSigningIn(false);
 
       // Background non-blocking profile sync
       syncUserProfileToFirestore(authUser, assignedRole);
     } catch (error: any) {
       console.warn('Google Sign-in info:', error?.message || error);
-      setIsLoading(false);
+      setIsSigningIn(false);
     }
   };
 
   const signOut = async () => {
     try {
-      setIsLoading(true);
       if (auth.currentUser) {
         try {
           const userRef = doc(db, 'users', auth.currentUser.uid);
@@ -297,7 +312,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserRole(null);
       setIsUnauthorized(false);
       setUnauthorizedEmail(null);
-      setIsLoading(false);
+      setIsSigningIn(false);
     }
   };
 
@@ -307,6 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(null);
     setTeamMember(null);
     setUserRole(null);
+    setIsSigningIn(false);
   };
 
   const isWhitelisted = Boolean(
@@ -315,6 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = Boolean(currentUser && isWhitelisted);
   const isAdmin = (userRole === 'admin') || (teamMember?.role === 'admin');
+  const isLoading = !isAuthReady || isSigningIn;
 
   return (
     <AuthContext.Provider
@@ -324,6 +341,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         isLoading,
         isAuthenticated,
+        isAuthReady,
+        isSigningIn,
         // Backward-compatibility aliases
         user: currentUser,
         role: userRole,
