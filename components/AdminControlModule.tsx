@@ -56,10 +56,10 @@ export function AdminControlModule() {
       <div>
         <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
           <Shield className="w-5 h-5 text-amber-400" />
-          Admin Control & 3-Member Whitelist Security
+          Admin Control & Team Whitelist Security
         </h2>
         <p className="text-sm text-slate-400">
-          Strict security perimeter: Only the 3 authorized Google accounts below can enter Trio INC. All storage is charged exclusively to the Admin&apos;s 5 TB Google Drive quota.
+          Strict security perimeter: Only authorized team accounts can enter Trio INC. All storage is charged exclusively to Admin Sachin Barman&apos;s 5 TB Google Drive quota.
         </p>
       </div>
 
@@ -204,21 +204,21 @@ export function AdminControlModule() {
         </div>
       </div>
 
-      {/* 3-Member Whitelist Config */}
+      {/* Authorized Team Whitelist Config */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Users className="w-4 h-4 text-amber-400" />
-              Designated 3-Member Whitelist
+              Designated Team Whitelist
             </h3>
             <p className="text-xs text-slate-400">
-              Any Google account outside these 3 Gmail addresses is automatically rejected with an Access Denied barrier.
+              Any Google account outside these designated Gmail addresses is automatically rejected with an Access Denied barrier.
             </p>
           </div>
 
           <div className="text-xs bg-amber-500/10 text-amber-400 font-semibold px-3 py-1 rounded-full border border-amber-500/20">
-            Capacity: 3 / 3 Slots
+            Capacity: {whitelist.length} Authorized Accounts
           </div>
         </div>
 

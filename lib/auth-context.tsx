@@ -1,14 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { 
   User, 
   signInWithPopup, 
   signOut as fbSignOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, googleProvider, db, handleFirestoreError, OperationType } from '@/lib/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, googleProvider, db } from '@/lib/firebase';
 import { 
   TeamMember, 
   UserRole, 
@@ -17,12 +17,70 @@ import {
   AUTHORIZED_WHITELIST_EMAILS 
 } from '@/lib/types';
 
+export function isAuthorizedEmail(email: string | null | undefined, currentWhitelist?: TeamMember[]): boolean {
+  if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
+  if (cleanEmail === DEFAULT_ADMIN_EMAIL.toLowerCase()) return true;
+  if (AUTHORIZED_WHITELIST_EMAILS.some((e) => e.toLowerCase() === cleanEmail)) return true;
+  if (currentWhitelist && currentWhitelist.some((m) => m.email.trim().toLowerCase() === cleanEmail)) return true;
+  return false;
+}
+
+export function getAssignedRole(email: string | null | undefined): UserRole {
+  if (!email) return 'member';
+  const cleanEmail = email.trim().toLowerCase();
+  return cleanEmail === DEFAULT_ADMIN_EMAIL.toLowerCase() ? 'admin' : 'member';
+}
+
+export function buildTeamMember(
+  user: User,
+  assignedRole: UserRole,
+  currentWhitelist: TeamMember[]
+): TeamMember {
+  const emailLower = (user.email || '').trim().toLowerCase();
+  const found = currentWhitelist.find((m) => m.email.trim().toLowerCase() === emailLower)
+    || INITIAL_WHITELIST.find((m) => m.email.trim().toLowerCase() === emailLower);
+
+  const fallbackDisplayName = assignedRole === 'admin' ? 'Sachin Barman' : (user.displayName || 'Team Member');
+  const fallbackTitle = assignedRole === 'admin' 
+    ? 'Founder & Admin (5 TB Drive Host)' 
+    : (emailLower.includes('50191') ? 'Operations & Production Lead' : (emailLower.includes('science') ? 'Research & Video Creative Lead' : 'Team Member'));
+
+  return {
+    uid: user.uid,
+    email: user.email || emailLower,
+    displayName: user.displayName || found?.displayName || fallbackDisplayName,
+    role: assignedRole,
+    avatarUrl: user.photoURL || undefined,
+    title: found?.title || fallbackTitle,
+  };
+}
+
+function syncUserProfileToFirestore(authUser: User, assignedRole: UserRole) {
+  try {
+    const userRef = doc(db, 'users', authUser.uid);
+    setDoc(userRef, {
+      uid: authUser.uid,
+      name: authUser.displayName || authUser.email?.split('@')[0] || 'Team Member',
+      email: authUser.email,
+      photoURL: authUser.photoURL || '',
+      role: assignedRole,
+      lastActive: serverTimestamp(),
+      isOnline: true,
+    }, { merge: true }).catch((err) => {
+      console.warn('Non-blocking user profile sync notice:', err);
+    });
+  } catch (e) {
+    console.warn('Profile sync initialization error:', e);
+  }
+}
+
 export interface AuthContextType {
-  // Required in prompt
   currentUser: User | null;
   userRole: UserRole | null;
   isAdmin: boolean;
   isLoading: boolean;
+  isAuthenticated: boolean;
 
   // Backward compatibility & team utilities
   user: User | null;
@@ -36,7 +94,6 @@ export interface AuthContextType {
   clearUnauthorized: () => void;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  simulateMemberLogin: (email: string) => void;
   updateWhitelistMember: (index: number, updated: Partial<TeamMember>) => void;
 }
 
@@ -56,10 +113,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const saved = localStorage.getItem('trio_whitelist');
         if (saved) {
           const parsed: TeamMember[] = JSON.parse(saved);
-          const hasSuraj = parsed.some((m) => m.email.toLowerCase() === 'suraj.yt.science@gmail.com');
-          const hasSachin = parsed.some((m) => m.email.toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase());
-          if (hasSuraj && hasSachin) {
-            return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Ensure all members of INITIAL_WHITELIST exist in the list
+            const merged = [...parsed];
+            for (const initial of INITIAL_WHITELIST) {
+              if (!merged.some(m => m.email.trim().toLowerCase() === initial.email.trim().toLowerCase())) {
+                merged.push(initial);
+              }
+            }
+            return merged;
           }
         }
       } catch (e) {
@@ -92,16 +154,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const whitelistRef = React.useRef(whitelist);
+  const whitelistRef = useRef(whitelist);
   useEffect(() => {
     whitelistRef.current = whitelist;
   }, [whitelist]);
 
-  // 3-second hard timeout fallback: guarantees splash screen NEVER freezes indefinitely
+  // Hard timeout fallback: guarantees splash screen never hangs
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 3000);
+    }, 2500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -110,32 +172,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         if (authUser && authUser.email) {
           const emailLower = authUser.email.trim().toLowerCase();
-
-          // Check if user is in authorized whitelist
-          const isRootAdmin = emailLower === DEFAULT_ADMIN_EMAIL.toLowerCase();
-          const isPredefined = AUTHORIZED_WHITELIST_EMAILS.some((e) => e.toLowerCase() === emailLower);
           const currentList = whitelistRef.current;
-          const inLocalWhitelist = currentList.some((m) => m.email.trim().toLowerCase() === emailLower);
-
-          // Also check if already present in Firestore users collection
-          let isFirestoreAuthorized = false;
-          try {
-            const userDocRef = doc(db, 'users', authUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists()) {
-              isFirestoreAuthorized = true;
-            }
-          } catch (e) {
-            console.warn('Error verifying user in Firestore:', e);
-          }
-
-          const isAuthorized = isRootAdmin || isPredefined || inLocalWhitelist || isFirestoreAuthorized;
+          const isAuthorized = isAuthorizedEmail(emailLower, currentList);
 
           if (!isAuthorized) {
-            // 3. CLEAN STATE RESTRICTION:
-            // If an unauthorized email logs in, show a gentle access-denied screen and automatically trigger auth.signOut().
-            const rejectedEmail = authUser.email;
-            setUnauthorizedEmail(rejectedEmail);
+            // Unauthorized account: immediately isolate and sign out
+            setUnauthorizedEmail(authUser.email);
             setIsUnauthorized(true);
             setCurrentUser(null);
             setTeamMember(null);
@@ -150,62 +192,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // User is authorized - clear any previous rejection
+          // User is authorized
+          const assignedRole = getAssignedRole(emailLower);
+          const memberData = buildTeamMember(authUser, assignedRole, currentList);
+
           setIsUnauthorized(false);
           setUnauthorizedEmail(null);
-
-          // Compute role strictly: user.email === "sachinbarman20190@gmail.com" ? "admin" : "member"
-          const assignedRole: UserRole = emailLower === DEFAULT_ADMIN_EMAIL.toLowerCase() ? 'admin' : 'member';
-
-          // AUTO-SYNC USER PROFILE ON LOGIN:
-          try {
-            const userRef = doc(db, 'users', authUser.uid);
-            await setDoc(userRef, {
-              uid: authUser.uid,
-              name: authUser.displayName || authUser.email.split('@')[0],
-              email: authUser.email,
-              photoURL: authUser.photoURL || '',
-              role: assignedRole,
-              lastActive: serverTimestamp(),
-              isOnline: true,
-            }, { merge: true });
-          } catch (e) {
-            handleFirestoreError(e, OperationType.WRITE, `users/${authUser.uid}`);
-          }
-
-          let found = currentList.find((m) => m.email.trim().toLowerCase() === emailLower);
-          if (!found) {
-            found = INITIAL_WHITELIST.find((m) => m.email.trim().toLowerCase() === emailLower);
-            if (found) {
-              setWhitelist((prev) => {
-                const updated = [...prev.filter((m) => m.email.toLowerCase() !== emailLower), found!];
-                saveWhitelist(updated);
-                return updated;
-              });
-            }
-          }
-
-          const memberData: TeamMember = {
-            uid: authUser.uid,
-            email: authUser.email,
-            displayName: authUser.displayName || found?.displayName || (assignedRole === 'admin' ? 'Sachin Barman' : 'Team Member'),
-            role: assignedRole,
-            avatarUrl: authUser.photoURL || undefined,
-            title: found?.title || (assignedRole === 'admin' ? 'Founder & Admin (5 TB Drive Host)' : 'Team Member'),
-          };
-
           setCurrentUser(authUser);
           setTeamMember(memberData);
           setUserRole(assignedRole);
+          setIsLoading(false);
+
+          // Non-blocking sync to Firestore
+          syncUserProfileToFirestore(authUser, assignedRole);
         } else {
-          // No active Firebase Auth session -> unauthenticated: immediately clear and set loading false
+          // No active Firebase Auth session
           setCurrentUser(null);
           setTeamMember(null);
           setUserRole(null);
+          setIsLoading(false);
         }
       } catch (err) {
         console.error('Error handling auth state change:', err);
-      } finally {
         setIsLoading(false);
       }
     });
@@ -218,11 +226,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setIsUnauthorized(false);
       setUnauthorizedEmail(null);
-      await signInWithPopup(auth, googleProvider);
+      
+      const result = await signInWithPopup(auth, googleProvider);
+      const authUser = result.user;
+
+      if (!authUser || !authUser.email) {
+        setIsLoading(false);
+        return;
+      }
+
+      const emailLower = authUser.email.trim().toLowerCase();
+      const currentList = whitelistRef.current;
+      const isAuthorized = isAuthorizedEmail(emailLower, currentList);
+
+      if (!isAuthorized) {
+        setUnauthorizedEmail(authUser.email);
+        setIsUnauthorized(true);
+        setCurrentUser(null);
+        setTeamMember(null);
+        setUserRole(null);
+        setIsLoading(false);
+
+        try {
+          await fbSignOut(auth);
+        } catch (e) {
+          console.warn('Sign-out on rejection:', e);
+        }
+        return;
+      }
+
+      // Authorized user - immediately update state
+      const assignedRole = getAssignedRole(emailLower);
+      const memberData = buildTeamMember(authUser, assignedRole, currentList);
+
+      setIsUnauthorized(false);
+      setUnauthorizedEmail(null);
+      setCurrentUser(authUser);
+      setTeamMember(memberData);
+      setUserRole(assignedRole);
+      setIsLoading(false);
+
+      // Background non-blocking profile sync
+      syncUserProfileToFirestore(authUser, assignedRole);
     } catch (error: any) {
       console.warn('Google Sign-in info:', error?.message || error);
-      // Suppress popup cancellation / closing errors cleanly without throwing uncaught promise errors or window.alerts
-    } finally {
       setIsLoading(false);
     }
   };
@@ -254,40 +301,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Switch perspective for testing the 3 team member roles
-  const simulateMemberLogin = (email: string) => {
-    const emailLower = email.trim().toLowerCase();
-    let found = whitelist.find((m) => m.email.trim().toLowerCase() === emailLower);
-    if (!found) {
-      found = INITIAL_WHITELIST.find((m) => m.email.trim().toLowerCase() === emailLower);
-    }
-    if (found) {
-      setTeamMember(found);
-      setUserRole(found.role);
-      setIsUnauthorized(false);
-      setUnauthorizedEmail(null);
-    } else {
-      setTeamMember(null);
-      setUserRole(null);
-    }
-  };
-
   const clearUnauthorized = () => {
     setIsUnauthorized(false);
     setUnauthorizedEmail(null);
-    const defaultMember = whitelist[0] || INITIAL_WHITELIST[0];
-    setTeamMember(defaultMember);
-    setUserRole(defaultMember?.role || 'admin');
+    setCurrentUser(null);
+    setTeamMember(null);
+    setUserRole(null);
   };
 
   const isWhitelisted = Boolean(
-    teamMember && (
-      AUTHORIZED_WHITELIST_EMAILS.some((e) => e.toLowerCase() === teamMember.email.trim().toLowerCase()) ||
-      whitelist.some((m) => m.email.trim().toLowerCase() === teamMember.email.trim().toLowerCase()) ||
-      teamMember.email.trim().toLowerCase() === DEFAULT_ADMIN_EMAIL.toLowerCase()
-    )
+    currentUser && currentUser.email && isAuthorizedEmail(currentUser.email, whitelist)
   );
 
+  const isAuthenticated = Boolean(currentUser && isWhitelisted);
   const isAdmin = (userRole === 'admin') || (teamMember?.role === 'admin');
 
   return (
@@ -297,6 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userRole,
         isAdmin,
         isLoading,
+        isAuthenticated,
         // Backward-compatibility aliases
         user: currentUser,
         role: userRole,
@@ -309,7 +336,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearUnauthorized,
         signInWithGoogle,
         signOut,
-        simulateMemberLogin,
         updateWhitelistMember,
       }}
     >
@@ -325,3 +351,4 @@ export function useAuth() {
   }
   return context;
 }
+

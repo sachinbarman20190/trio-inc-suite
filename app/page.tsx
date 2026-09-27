@@ -112,7 +112,7 @@ function DashboardView({
     clearUnauthorized,
     signInWithGoogle, 
     signOut, 
-    simulateMemberLogin 
+    isAuthenticated 
   } = useAuth();
 
   const { unreadCounts } = useNotification();
@@ -191,8 +191,8 @@ function DashboardView({
 
   // 2. CLEAN STATE RESTRICTION:
   // If an unauthorized email logs in, show a gentle access-denied screen and automatically trigger auth.signOut()
-  if (isUnauthorized || (user && !isWhitelisted)) {
-    const attemptedEmail = unauthorizedEmail || user?.email || 'Unknown User';
+  if (isUnauthorized || (currentUser && !isWhitelisted)) {
+    const attemptedEmail = unauthorizedEmail || currentUser?.email || user?.email || 'Unknown User';
     return (
       <main className="min-h-screen bg-[#070a12] flex items-center justify-center p-4 font-sans selection:bg-sky-500 selection:text-white">
         <div className="max-w-md w-full bg-slate-900/90 border border-amber-500/30 rounded-3xl p-8 text-center space-y-5 shadow-2xl backdrop-blur-xl">
@@ -209,14 +209,18 @@ function DashboardView({
             Trio INC. is a strictly private operational hub restricted to designated team members. Your Google account is not on the active whitelist.
           </p>
           <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 text-left text-xs text-slate-400 space-y-2">
-            <div className="font-semibold text-slate-200">Authorized Team Members:</div>
+            <div className="font-semibold text-slate-200">Authorized Team Accounts:</div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
               <span>Sachin Barman (Admin &bull; sachinbarman20190@gmail.com)</span>
             </div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
-              <span>Suraj Barman (Member &bull; suraj.yt.science@gmail.com)</span>
+              <span>Suraj Barman (Member &bull; surajbarman50191@gmail.com)</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+              <span>Suraj Barman (Secondary / Lab &bull; suraj.yt.science@gmail.com)</span>
             </div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
@@ -248,7 +252,7 @@ function DashboardView({
 
   // 3. UNRESTRICTED LOGIN SCREEN:
   // Render clean Material 3 Google Sign-In view immediately if unauthenticated
-  if (!currentUser && !teamMember) {
+  if (!currentUser || !isWhitelisted) {
     return (
       <main className="min-h-screen bg-[#070a12] flex items-center justify-center p-4 sm:p-6 font-sans selection:bg-sky-500 selection:text-white relative overflow-hidden">
         {/* Subtle background ambient gradients */}
@@ -308,24 +312,13 @@ function DashboardView({
               </svg>
               <span>{isLoading ? 'Connecting to Google...' : 'Sign in with Google'}</span>
             </button>
-
-            {/* Quick Demo Preview Option */}
-            <div className="pt-2 border-t border-slate-800/80">
-              <button
-                onClick={() => simulateMemberLogin('sachinbarman20190@gmail.com')}
-                className="w-full py-2.5 min-h-[40px] cursor-pointer bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <span>Explore Workspace Demo</span>
-                <span className="text-[10px] bg-slate-700/60 px-1.5 py-0.5 rounded text-sky-400 font-mono">Admin Mode</span>
-              </button>
-            </div>
           </div>
 
           {/* Whitelisted Members Reference */}
           <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 text-left text-xs space-y-2">
             <div className="font-semibold text-slate-300 flex items-center justify-between">
               <span>Authorized Team Members:</span>
-              <span className="text-[10px] text-slate-500 font-mono">3 Slots</span>
+              <span className="text-[10px] text-slate-500 font-mono">Team Whitelist</span>
             </div>
             <div className="space-y-1.5 text-[11px] text-slate-400">
               <div className="flex items-center gap-2">
@@ -334,7 +327,11 @@ function DashboardView({
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-                <span className="truncate">Suraj Barman (Member &bull; suraj.yt.science@gmail.com)</span>
+                <span className="truncate">Suraj Barman (Member &bull; surajbarman50191@gmail.com)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                <span className="truncate">Suraj Barman (Secondary / Lab &bull; suraj.yt.science@gmail.com)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
@@ -404,22 +401,15 @@ function DashboardView({
               </button>
             )}
 
-            {/* Quick 3-Member Role Switcher */}
-            <div className="hidden lg:flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5 gap-0.5">
-              <span className="text-[10px] text-slate-500 px-1.5 font-medium">Switch:</span>
-              {whitelist.map((m) => (
-                <button
-                  key={m.email}
-                  onClick={() => simulateMemberLogin(m.email)}
-                  className={`cursor-pointer px-2 py-1 text-[11px] font-semibold rounded-lg transition-all ${
-                    teamMember?.email.toLowerCase() === m.email.toLowerCase()
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                  }`}
-                >
-                  {m.displayName.split(' ')[0]} {m.role === 'admin' && '(Admin)'}
-                </button>
-              ))}
+            {/* Authenticated Member Session Clearance */}
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-semibold text-slate-300">
+                {isAdmin ? 'Admin Clearance' : 'Member Clearance'}
+              </span>
+              <span className="text-[10px] font-mono text-slate-500 uppercase">
+                {userRole || 'Active'}
+              </span>
             </div>
 
             {/* Active User Card & Sign In/Out */}
@@ -740,31 +730,43 @@ function DashboardView({
               </div>
             </div>
 
-            {/* Mobile Member Perspective Switcher */}
+            {/* Authenticated Account Card */}
             <div className="pt-2 border-t border-slate-800/80">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-1 mb-1.5">
-                Switch Member Persona
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {whitelist.map((m) => (
-                  <button
-                    key={m.email}
-                    onClick={() => {
-                      simulateMemberLogin(m.email);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`cursor-pointer min-h-[44px] px-2 py-2 text-[11px] font-semibold rounded-xl text-center flex flex-col items-center justify-center transition-all active:scale-95 ${
-                      teamMember?.email.toLowerCase() === m.email.toLowerCase()
-                        ? 'bg-sky-600 text-white shadow-sm border border-sky-500'
-                        : 'bg-slate-900/90 text-slate-400 border border-slate-800 hover:text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="truncate w-full">{m.displayName.split(' ')[0]}</span>
-                    <span className="text-[9px] opacity-75 font-normal">
-                      {m.role === 'admin' ? 'Admin' : 'Member'}
-                    </span>
-                  </button>
-                ))}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {currentUser?.photoURL ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img 
+                      src={currentUser.photoURL} 
+                      alt={teamMember?.displayName || 'User'} 
+                      referrerPolicy="no-referrer"
+                      className="w-8 h-8 rounded-full object-cover border border-sky-500/40 shrink-0" 
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-sky-400 shrink-0">
+                      {teamMember?.displayName?.substring(0, 2).toUpperCase() || '3P'}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate flex items-center gap-1">
+                      {teamMember?.displayName}
+                      {isAdmin && <Shield className="w-3 h-3 text-amber-400 shrink-0" />}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-mono truncate">
+                      {teamMember?.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    signOut();
+                  }}
+                  className="cursor-pointer min-h-[36px] px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold rounded-lg flex items-center gap-1 shrink-0"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout</span>
+                </button>
               </div>
             </div>
 

@@ -22,12 +22,13 @@ export interface UserProfileDocument {
   createdAt?: any;
 }
 
-// Predefined 3-member whitelist for Trio INC.
+// Predefined authorized team whitelist for Trio INC.
 // Sachin Barman (sachinbarman20190@gmail.com) is the root Admin with the 5 TB Drive
 export const DEFAULT_ADMIN_EMAIL = 'sachinbarman20190@gmail.com';
 
 export const AUTHORIZED_WHITELIST_EMAILS = [
   'sachinbarman20190@gmail.com',
+  'surajbarman50191@gmail.com',
   'suraj.yt.science@gmail.com',
   'member3@gmail.com',
 ] as const;
@@ -40,10 +41,16 @@ export const INITIAL_WHITELIST: TeamMember[] = [
     title: 'Founder & Admin (5 TB Drive Host)',
   },
   {
-    email: 'suraj.yt.science@gmail.com',
+    email: 'surajbarman50191@gmail.com',
     displayName: 'Suraj Barman',
     role: 'member',
-    title: 'Team Member',
+    title: 'Operations & Production Lead',
+  },
+  {
+    email: 'suraj.yt.science@gmail.com',
+    displayName: 'Suraj Barman (Lab)',
+    role: 'member',
+    title: 'Research & Video Creative Lead',
   },
   {
     email: 'member3@gmail.com',
