@@ -266,7 +266,7 @@ function DashboardView({
             </div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
-              <span>Member 3 (Member &bull; member3@gmail.com)</span>
+              <span>Snehasish (Creative &bull; snehasish3010@gmail.com)</span>
             </div>
           </div>
           <div className="pt-2 flex flex-col gap-2">
@@ -380,7 +380,7 @@ function DashboardView({
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                <span className="truncate">Member 3 (Member &bull; member3@gmail.com)</span>
+                <span className="truncate">Snehasish (Creative &bull; snehasish3010@gmail.com)</span>
               </div>
             </div>
           </div>

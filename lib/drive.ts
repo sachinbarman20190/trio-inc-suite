@@ -11,6 +11,8 @@ export interface UploadResult {
   size?: string;
   previewUrl: string;
   downloadUrl: string;
+  webViewLink?: string;
+  webContentLink?: string;
   isSimulated?: boolean;
 }
 
@@ -225,18 +227,18 @@ export async function uploadBufferToAdminDrive(
 
       const fileId = res.data.id || `file_${Date.now()}`;
 
-      // Eliminate sequential delay: Grant anyoneWithLink read permission in background/parallel without blocking response
-      drive.permissions
-        .create({
+      // Make the file readable by anyone with link (drive.permissions.create with role: 'reader', type: 'anyone')
+      try {
+        await drive.permissions.create({
           fileId,
           requestBody: {
             role: 'reader',
             type: 'anyone',
           },
-        })
-        .catch((permErr) => {
-          console.warn('[Google Drive] Non-critical background permission warning:', permErr?.message || permErr);
         });
+      } catch (permErr: any) {
+        console.warn('[Google Drive] Permission notice:', permErr?.message || permErr);
+      }
 
       const formattedSize = res.data.size
         ? `${(parseInt(res.data.size, 10) / (1024 * 1024)).toFixed(2)} MB`
@@ -249,6 +251,8 @@ export async function uploadBufferToAdminDrive(
         size: formattedSize,
         previewUrl: res.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
         downloadUrl: res.data.webContentLink || `https://drive.google.com/uc?export=download&id=${fileId}`,
+        webViewLink: res.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
+        webContentLink: res.data.webContentLink || `https://drive.google.com/uc?export=download&id=${fileId}`,
       };
     } catch (err: any) {
       console.warn('[Google Drive Storage] Fast direct upload failed or timed out, using fallback buffer:', err?.message || err);

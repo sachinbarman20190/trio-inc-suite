@@ -46,7 +46,9 @@ export function buildTeamMember(
     ? 'Sachin Barman' 
     : (emailLower === 'surajbarman50191@gmail.com' || emailLower === 'suraj.yt.science@gmail.com'
         ? 'Suraj Barman'
-        : (user.displayName || 'Team Member'));
+        : (emailLower === 'snehasish3010@gmail.com'
+            ? 'Snehasish'
+            : (user.displayName || 'Team Member')));
 
   const fallbackTitle = assignedRole === 'admin' 
     ? 'Founder & Admin (5 TB Drive Host)' 
@@ -54,7 +56,9 @@ export function buildTeamMember(
         ? 'Operations & Production Lead'
         : (emailLower === 'suraj.yt.science@gmail.com'
             ? 'Research & Video Creative Lead'
-            : 'Team Member'));
+            : (emailLower === 'snehasish3010@gmail.com'
+                ? 'Creative & Asset Lead'
+                : 'Team Member')));
 
   return {
     uid: user.uid,

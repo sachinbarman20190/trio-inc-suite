@@ -30,7 +30,7 @@ export const AUTHORIZED_WHITELIST_EMAILS = [
   'sachinbarman20190@gmail.com',
   'surajbarman50191@gmail.com',
   'suraj.yt.science@gmail.com',
-  'member3@gmail.com',
+  'snehasish3010@gmail.com',
 ] as const;
 
 export const INITIAL_WHITELIST: TeamMember[] = [
@@ -53,10 +53,10 @@ export const INITIAL_WHITELIST: TeamMember[] = [
     title: 'Research & Video Creative Lead',
   },
   {
-    email: 'member3@gmail.com',
-    displayName: 'Member 3',
+    email: 'snehasish3010@gmail.com',
+    displayName: 'Snehasish',
     role: 'member',
-    title: 'Team Member (Slot 3)',
+    title: 'Creative & Asset Lead',
   },
 ];
 
@@ -216,26 +216,33 @@ export type MediaAssetCategory =
 export interface MediaAssetItem {
   id: string;
   title: string;
+  name?: string;
   category: 'T-Shirt Prints' | 'Hoodies & Winter' | 'Mockup Renders' | 'Social Media / Posters' | 'DTF Vectors' | 'General';
   format: 'PNG' | 'PSD' | 'AI' | 'SVG' | 'TIFF' | 'PDF' | 'JPG' | string;
   resolution: string; // e.g. "300 DPI", "600 DPI Vector", "4K DTF"
   dimensions: string; // e.g. "4500 x 5400 px"
   fileSize: string; // e.g. "14.8 MB"
   fileSizeBytes: number;
+  size?: number;
   downloadsCount: number;
   likesCount: number;
   uploadedBy: string;
+  uploadedByName?: string;
   uploaderEmail: string;
   uploaderAvatar?: string;
   createdAt: string;
+  createdAtMs?: number;
   uploadedAt?: string;
   driveFolder?: string;
   driveLink: string;
+  driveViewLink?: string;
   driveUrl?: string;
   fileId?: string;
   previewUrl: string;
   downloadUrl?: string;
+  driveDownloadLink?: string;
   masterDownloadUrl: string;
+  webContentLink?: string;
   tags: string[];
   isSpotlight?: boolean;
   isFeatured?: boolean;
