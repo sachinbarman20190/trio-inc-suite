@@ -216,9 +216,12 @@ function DashboardView({
     return (
       <main className="min-h-screen bg-[#070a12] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-sky-500/20 animate-pulse">
-            3P
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="Loading"
+            className="w-16 h-16 rounded-full animate-pulse shadow-[0_0_20px_rgba(56,189,248,0.4)] object-cover"
+          />
           <div className="flex items-center space-x-2 text-slate-400 text-sm font-medium">
             <div className="w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
             <span>Verifying Trio INC. Workspace...</span>
@@ -301,10 +304,13 @@ function DashboardView({
           {/* Logo & Identity */}
           <div className="flex flex-col items-center space-y-3">
             <div className="relative">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-sky-500/25">
-                3P
-              </div>
-              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="Trio INC."
+                className="w-20 h-20 rounded-full object-cover shadow-[0_0_25px_rgba(56,189,248,0.5)] border border-cyan-400/40 mx-auto"
+              />
+              <span className="absolute bottom-0 right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full" />
             </div>
             <div>
               <div className="flex items-center justify-center gap-2">
@@ -394,9 +400,12 @@ function DashboardView({
           {/* Logo & Identity */}
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div className="relative shrink-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-xs sm:text-sm shadow-md shadow-sky-500/20">
-                3P
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="Trio INC."
+                className="w-9 h-9 rounded-full object-cover shadow-[0_0_12px_rgba(56,189,248,0.4)] border border-cyan-500/30"
+              />
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-500 border-2 border-slate-950 rounded-full" />
             </div>
             <div className="min-w-0">
@@ -470,7 +479,7 @@ function DashboardView({
                   />
                 ) : (
                   <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-white shadow-sm shrink-0">
-                    {teamMember?.displayName?.substring(0, 2).toUpperCase() || '3P'}
+                    {teamMember?.displayName?.substring(0, 2).toUpperCase() || 'TI'}
                   </div>
                 )}
                 <div className="hidden sm:block text-left min-w-0">
@@ -499,7 +508,7 @@ function DashboardView({
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-md shrink-0">
-                        {teamMember?.displayName?.substring(0, 2).toUpperCase() || '3P'}
+                        {teamMember?.displayName?.substring(0, 2).toUpperCase() || 'TI'}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
@@ -749,9 +758,12 @@ function DashboardView({
           {/* Sheet Header */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/80 shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-black text-white text-[11px] shadow-sm">
-                3P
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="Trio INC."
+                className="w-7 h-7 rounded-full object-cover shadow-[0_0_10px_rgba(56,189,248,0.3)] border border-cyan-500/30"
+              />
               <div>
                 <h3 className="text-xs font-bold text-white tracking-wide">More Modules &amp; Tools</h3>
                 <p className="text-[10px] text-slate-400">Print-On-Demand Operations</p>
@@ -844,7 +856,7 @@ function DashboardView({
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-sky-400 shrink-0">
-                      {teamMember?.displayName?.substring(0, 2).toUpperCase() || '3P'}
+                      {teamMember?.displayName?.substring(0, 2).toUpperCase() || 'TI'}
                     </div>
                   )}
                   <div className="min-w-0">

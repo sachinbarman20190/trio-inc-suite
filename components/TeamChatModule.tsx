@@ -270,9 +270,12 @@ export function TeamChatModule() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3.5 bg-slate-900/95 border-b border-slate-800 backdrop-blur-md gap-2 sm:gap-3 shrink-0">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div className="relative shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-white text-xs sm:text-sm shadow-md">
-              3P
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="Trio INC."
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover shadow-[0_0_12px_rgba(56,189,248,0.4)] border border-cyan-500/30"
+            />
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
           </div>
           <div className="min-w-0 flex-1">

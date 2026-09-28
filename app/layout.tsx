@@ -3,8 +3,8 @@ import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 
 export const metadata: Metadata = {
-  title: 'Trio INC. | 3-Member POD Operations Hub',
-  description: 'Internal team management, analytics, and collaboration hub for 3-member Print-On-Demand startup.',
+  title: 'Trio INC. | POD Operations Hub',
+  description: 'Private 3-Member Operations & Asset Management Hub for Trio INC.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -12,12 +12,21 @@ export const metadata: Metadata = {
     title: 'Trio INC.',
   },
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
   },
   openGraph: {
-    title: 'Trio INC. | POD Team Hub',
-    description: 'Internal team management, analytics, and collaboration hub for 3-member Print-On-Demand startup.',
+    title: 'Trio INC. | POD Operations Hub',
+    description: 'Private Operational Hub & 5 TB Drive Studio Archive',
+    images: [
+      {
+        url: '/logo.png',
+        width: 1024,
+        height: 1024,
+        alt: 'Trio INC. Official Emblem',
+      },
+    ],
     type: 'website',
   },
 };
