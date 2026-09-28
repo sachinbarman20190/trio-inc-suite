@@ -268,11 +268,18 @@ export function MediaAssetHubModule() {
   // Avoids brittle multi-field compound indexes that freeze onSnapshot
   useEffect(() => {
     setIsLoadingAssets(true);
+
+    // Instant resolution timeout: If Firestore takes more than 2 seconds, stop spinner
+    const safetyTimeout = setTimeout(() => {
+      setIsLoadingAssets(false);
+    }, 2000);
+
     const q = collection(db, 'media_assets');
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        clearTimeout(safetyTimeout);
         const docs = snapshot.docs.map((docSnap) => {
           const d = docSnap.data();
           const fileId = d.fileId || '';
@@ -339,11 +346,15 @@ export function MediaAssetHubModule() {
       },
       (error) => {
         console.error('Firestore media assets listener error:', error);
+        clearTimeout(safetyTimeout);
         setIsLoadingAssets(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      clearTimeout(safetyTimeout);
+    };
   }, []);
 
   // 2. LISTEN TO SYSTEM SETTINGS FOR PINNED SPOTLIGHT HERO
@@ -520,94 +531,60 @@ export function MediaAssetHubModule() {
         );
 
         const driveData = response.data || response;
-        const serverDocId = response.docId || driveData.docId || driveData.id;
+        if (!driveData.fileId) throw new Error("Drive upload failed");
 
         const titleClean = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').toUpperCase();
         const category = determineCategory(file.name, file.type);
         const format = determineFormat(file.name, file.type);
-        const directLink = driveData.fileId ? `https://lh3.googleusercontent.com/d/${driveData.fileId}` : '';
-        const downloadUrl = driveData.driveDownloadLink || directLink || driveData.downloadUrl;
-        const driveLink = driveData.driveViewLink || driveData.previewUrl || driveData.downloadUrl;
+        const driveViewLink = driveData.webViewLink || driveData.driveViewLink || `https://drive.google.com/file/d/${driveData.fileId}/view`;
+        const driveDownloadLink = `https://lh3.googleusercontent.com/d/${driveData.fileId}`;
+        const webContentLink = driveData.webContentLink || `https://drive.google.com/uc?export=download&id=${driveData.fileId}`;
 
-        // If for any rare reason server failed to write docId, write client-side
-        let finalDocId = serverDocId;
-        if (!finalDocId || finalDocId.startsWith('asset_')) {
-          const assetDocClient = {
-            name: file.name,
-            title: titleClean,
-            fileId: driveData.fileId || '',
-            driveViewLink: driveLink,
-            driveDownloadLink: downloadUrl,
-            webContentLink: driveData.webContentLink || downloadUrl,
-            size: file.size,
-            mimeType: file.type || 'application/octet-stream',
-            category,
-            uploadedBy: userEmail || teamMember?.email || 'sachinbarman20190@gmail.com',
-            uploadedByName: teamMember?.displayName || 'Trio Member',
-            createdAtMs: Date.now(),
-            isFeatured: false,
-            format,
-            resolution: format === 'SVG' || format === 'AI' ? 'Vector Scalable' : '300 DPI CMYK',
-            dimensions: 'Print-Ready Master',
-            fileSize: formatFileSize(file.size),
-            fileSizeBytes: file.size,
-            downloadsCount: 0,
-            likesCount: 0,
-            uploaderEmail: userEmail || teamMember?.email || '',
-            uploaderAvatar: teamMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-            createdAt: new Date().toISOString(),
-            uploadedAt: new Date().toISOString(),
-            driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
-            driveLink,
-            driveUrl: driveLink,
-            downloadUrl,
-            masterDownloadUrl: driveData.webContentLink || downloadUrl,
-            previewUrl: downloadUrl,
-            tags: ['PrintReady', category, format],
-            isSpotlight: false,
-            colorway: 'Standard Print Ready',
-            mockupGarment: category === 'Hoodies & Winter' ? '400 GSM Fleece Hoodie' : 'Heavyweight 240 GSM Tee',
-          };
-          const addedDocRef = await addDoc(collection(db, 'media_assets'), assetDocClient);
-          finalDocId = addedDocRef.id;
-        }
-
-        const newAssetItem: MediaAssetItem = {
-          id: finalDocId,
-          title: response.title || titleClean,
-          name: response.name || file.name,
-          category: response.category || category,
-          format: response.format || format,
-          resolution: response.resolution || (format === 'SVG' || format === 'AI' ? 'Vector Scalable' : '300 DPI CMYK'),
-          dimensions: response.dimensions || 'Print-Ready Master',
+        // 2. CRITICAL: Permanently save record to Firestore collection 'media_assets'
+        const newAssetDoc = {
+          name: file.name,
+          title: titleClean,
+          fileId: driveData.fileId,
+          driveViewLink,
+          driveDownloadLink,
+          webContentLink,
+          size: file.size,
+          mimeType: file.type || 'image/png',
+          category: selectedCategory !== 'All Assets' && selectedCategory !== 'All Categories' ? selectedCategory : category,
+          uploadedBy: userEmail || teamMember?.email || 'sachinbarman20190@gmail.com',
+          uploadedByName: teamMember?.displayName || 'Team Member',
+          createdAtMs: Date.now(),
+          isFeatured: false,
+          format,
+          resolution: format === 'SVG' || format === 'AI' ? 'Vector Scalable' : '300 DPI CMYK',
+          dimensions: 'Print-Ready Master',
           fileSize: formatFileSize(file.size),
           fileSizeBytes: file.size,
-          size: file.size,
           downloadsCount: 0,
           likesCount: 0,
-          uploadedBy: teamMember?.displayName || 'Trio Member',
-          uploadedByName: teamMember?.displayName || 'Trio Member',
           uploaderEmail: userEmail || teamMember?.email || '',
           uploaderAvatar: teamMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
           createdAt: new Date().toISOString(),
-          createdAtMs: response.createdAtMs || Date.now(),
           uploadedAt: new Date().toISOString(),
           driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
-          driveLink,
-          driveViewLink: driveLink,
-          driveUrl: driveLink,
-          fileId: driveData.fileId || '',
-          downloadUrl,
-          driveDownloadLink: downloadUrl,
-          masterDownloadUrl: driveData.webContentLink || downloadUrl,
-          webContentLink: driveData.webContentLink || downloadUrl,
-          previewUrl: downloadUrl,
+          driveLink: driveViewLink,
+          driveUrl: driveViewLink,
+          downloadUrl: driveDownloadLink,
+          masterDownloadUrl: webContentLink,
+          previewUrl: driveDownloadLink,
           tags: ['PrintReady', category, format],
           isSpotlight: false,
-          isFeatured: false,
-          mimeType: file.type || 'application/octet-stream',
           colorway: 'Standard Print Ready',
           mockupGarment: category === 'Hoodies & Winter' ? '400 GSM Fleece Hoodie' : 'Heavyweight 240 GSM Tee',
+        };
+
+        const docRef = await addDoc(collection(db, 'media_assets'), newAssetDoc);
+        console.log('Asset permanently saved to Firestore with ID:', docRef.id);
+        const finalDocId = docRef.id;
+
+        const newAssetItem: MediaAssetItem = {
+          id: finalDocId,
+          ...newAssetDoc,
         };
 
         // Optimistically append to local UI immediately so card appears with zero delay
@@ -632,7 +609,7 @@ export function MediaAssetHubModule() {
 
         triggerToast({
           type: 'system',
-          title: 'Asset Uploaded to 5 TB Drive',
+          title: '✅ Asset saved permanently to Trio Vault!',
           snippet: `"${file.name}" saved to Google Drive and synced to team vault.`,
           targetTab: 'media-hub'
         });
@@ -696,66 +673,55 @@ export function MediaAssetHubModule() {
       );
 
       const driveData = response.data || response;
-      const serverDocId = response.docId || driveData.docId || driveData.id;
-      const directLink = driveData.fileId ? `https://lh3.googleusercontent.com/d/${driveData.fileId}` : '';
-      const downloadUrl = driveData.driveDownloadLink || directLink || driveData.downloadUrl;
-      const driveLink = driveData.driveViewLink || driveData.previewUrl || driveData.downloadUrl;
+      if (!driveData.fileId) throw new Error("Drive upload failed");
+
+      const driveViewLink = driveData.webViewLink || driveData.driveViewLink || `https://drive.google.com/file/d/${driveData.fileId}/view`;
+      const driveDownloadLink = `https://lh3.googleusercontent.com/d/${driveData.fileId}`;
+      const webContentLink = driveData.webContentLink || `https://drive.google.com/uc?export=download&id=${driveData.fileId}`;
 
       const customTitle = uploadTitle.trim().toUpperCase() || customFile.name.replace(/\.[^/.]+$/, '').toUpperCase();
       const customTags = uploadTags.split(',').map((t) => t.trim()).filter(Boolean);
 
-      const customSpecDoc = {
+      const fullDoc = {
+        name: customFile.name,
         title: customTitle,
+        fileId: driveData.fileId,
+        driveViewLink,
+        driveDownloadLink,
+        webContentLink,
+        size: customFile.size,
+        mimeType: customFile.type || 'image/png',
         category: uploadCategory,
+        uploadedBy: userEmail || teamMember?.email || 'sachinbarman20190@gmail.com',
+        uploadedByName: teamMember?.displayName || 'Team Member',
+        createdAtMs: Date.now(),
+        isFeatured: false,
         format: uploadFormat,
         resolution: uploadResolution,
         dimensions: uploadDimensions,
         tags: customTags,
         colorway: 'Custom Print Ready',
-        mockupGarment: uploadCategory === 'Hoodies & Winter' ? '400 GSM Fleece Hoodie' : 'Heavyweight Box-Fit 260 GSM Tee'
+        mockupGarment: uploadCategory === 'Hoodies & Winter' ? '400 GSM Fleece Hoodie' : 'Heavyweight Box-Fit 260 GSM Tee',
+        fileSize: formatFileSize(customFile.size),
+        fileSizeBytes: customFile.size,
+        downloadsCount: 0,
+        likesCount: 0,
+        uploaderEmail: userEmail || teamMember?.email || '',
+        uploaderAvatar: teamMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
+        createdAt: new Date().toISOString(),
+        uploadedAt: new Date().toISOString(),
+        driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
+        driveLink: driveViewLink,
+        driveUrl: driveViewLink,
+        downloadUrl: driveDownloadLink,
+        masterDownloadUrl: webContentLink,
+        previewUrl: driveDownloadLink,
+        isSpotlight: false,
       };
 
-      let finalDocId = serverDocId;
-      if (finalDocId && !finalDocId.startsWith('asset_')) {
-        try {
-          await updateDoc(doc(db, 'media_assets', finalDocId), customSpecDoc);
-        } catch (e) {
-          console.warn('Update custom spec notice:', e);
-        }
-      } else {
-        const fullDoc = {
-          name: customFile.name,
-          title: customTitle,
-          fileId: driveData.fileId || '',
-          driveViewLink: driveLink,
-          driveDownloadLink: downloadUrl,
-          webContentLink: driveData.webContentLink || downloadUrl,
-          size: customFile.size,
-          mimeType: customFile.type || 'application/octet-stream',
-          uploadedBy: userEmail || teamMember?.email || 'sachinbarman20190@gmail.com',
-          uploadedByName: teamMember?.displayName || 'Trio Member',
-          createdAtMs: Date.now(),
-          isFeatured: false,
-          fileSize: formatFileSize(customFile.size),
-          fileSizeBytes: customFile.size,
-          downloadsCount: 0,
-          likesCount: 0,
-          uploaderEmail: userEmail || teamMember?.email || '',
-          uploaderAvatar: teamMember?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-          createdAt: new Date().toISOString(),
-          uploadedAt: new Date().toISOString(),
-          driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
-          driveLink,
-          driveUrl: driveLink,
-          downloadUrl,
-          masterDownloadUrl: driveData.webContentLink || downloadUrl,
-          previewUrl: downloadUrl,
-          isSpotlight: false,
-          ...customSpecDoc,
-        };
-        const added = await addDoc(collection(db, 'media_assets'), fullDoc);
-        finalDocId = added.id;
-      }
+      const docRef = await addDoc(collection(db, 'media_assets'), fullDoc);
+      console.log('Asset permanently saved to Firestore with ID:', docRef.id);
+      const finalDocId = docRef.id;
 
       // Optimistically append to local UI immediately
       const localItem: MediaAssetItem = {
@@ -808,7 +774,7 @@ export function MediaAssetHubModule() {
       setCustomProgress(100);
       triggerToast({
         type: 'system',
-        title: 'Asset Uploaded to 5 TB Drive',
+        title: '✅ Asset saved permanently to Trio Vault!',
         snippet: `"${customTitle}" published with custom specs.`,
         targetTab: 'media-hub'
       });
@@ -1339,12 +1305,6 @@ export function MediaAssetHubModule() {
             </div>
           </div>
         </section>
-      ) : (
-        /* Loading skeleton */
-        <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-12 text-center flex flex-col items-center justify-center space-y-3">
-          <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
-          <p className="text-xs text-slate-400 font-mono">Loading real-time assets from Firestore...</p>
-        </div>
       )}
 
       {/* 2. CATEGORY FILTER PILL BAR & SEARCH CONTROLS */}

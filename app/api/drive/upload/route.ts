@@ -57,85 +57,31 @@ export async function POST(req: NextRequest) {
       selectedCategory as any
     );
 
-    // Step B: Ensure the file is readable by anyone with the link
-    // (Handled directly in uploadBufferToAdminDrive via drive.permissions.create with role: 'reader', type: 'anyone')
-
-    // Step C: Instantly create a permanent document in Firestore collection `media_assets`
     const fileId = uploadResult.fileId;
     const driveViewLink = uploadResult.webViewLink || uploadResult.previewUrl || `https://drive.google.com/file/d/${fileId}/view`;
     const driveDownloadLink = uploadResult.isSimulated 
       ? uploadResult.downloadUrl 
       : `https://lh3.googleusercontent.com/d/${fileId}`;
     const webContentLink = uploadResult.webContentLink || uploadResult.downloadUrl || driveDownloadLink;
-    const nowMs = Date.now();
-    const nowIso = new Date().toISOString();
-
-    const titleClean = fileName.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').toUpperCase();
-    const format = determineFormat(fileName, mimeType);
-
-    const assetDoc = {
-      name: file.name,
-      fileId,
-      driveViewLink,
-      driveDownloadLink,
-      webContentLink,
-      size: file.size,
-      mimeType,
-      category: selectedCategory || 'T-Shirt Prints',
-      uploadedBy,
-      uploadedByName,
-      uploadedAt: serverTimestamp(),
-      createdAtMs: nowMs,
-      isFeatured: false,
-      // Compatibility fields for the frontend MediaAssetItem interface
-      title: titleClean,
-      format,
-      resolution: format === 'SVG' || format === 'AI' ? 'Vector Scalable' : '300 DPI CMYK',
-      dimensions: 'Print-Ready Master',
-      fileSize: formatFileSize(file.size),
-      fileSizeBytes: file.size,
-      downloadsCount: 0,
-      likesCount: 0,
-      uploaderEmail: uploadedBy,
-      uploaderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80',
-      createdAt: nowIso,
-      driveFolder: 'Trio-INC-Drive / 02_PrintReady_Assets',
-      driveLink: driveViewLink,
-      driveUrl: driveViewLink,
-      previewUrl: driveDownloadLink,
-      downloadUrl: driveDownloadLink,
-      masterDownloadUrl: webContentLink,
-      tags: ['PrintReady', selectedCategory || 'T-Shirt Prints', format],
-      isSpotlight: false,
-      colorway: 'Standard Print Ready',
-      mockupGarment: selectedCategory === 'Hoodies & Winter' ? '400 GSM Fleece Hoodie' : 'Heavyweight 240 GSM Tee',
-    };
-
-    let docId = '';
-    try {
-      const docRef = await addDoc(collection(db, 'media_assets'), assetDoc);
-      docId = docRef.id;
-    } catch (firestoreError: any) {
-      console.error('Failed to create Firestore document on server:', firestoreError);
-      docId = `asset_${fileId}`;
-    }
 
     return NextResponse.json({
       success: true,
-      docId,
-      id: docId,
-      ...assetDoc,
-      uploadedAt: nowIso,
-      data: {
-        ...uploadResult,
-        id: docId,
-        docId,
-        ...assetDoc,
-        uploadedAt: nowIso,
-      },
+      fileId,
+      id: fileId,
+      name: file.name,
+      fileName,
+      mimeType,
+      size: file.size,
+      webViewLink: driveViewLink,
+      webContentLink,
+      driveViewLink,
+      driveDownloadLink,
+      downloadUrl: driveDownloadLink,
+      previewUrl: driveDownloadLink,
+      category: selectedCategory || 'T-Shirt Prints',
       storageNote: uploadResult.isSimulated 
         ? 'Media ready (Instant fallback). Dedicated to 5 TB Google Drive.'
-        : 'Uploaded directly to Admin 5 TB Google Drive quota and permanently stored in Firestore.',
+        : 'Uploaded directly to Admin 5 TB Google Drive quota.',
     });
   } catch (error: any) {
     console.error('Error handling Drive upload:', error);
