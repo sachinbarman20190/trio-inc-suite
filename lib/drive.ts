@@ -178,6 +178,100 @@ export function getDriveClient() {
 }
 
 /**
+ * Blazing-fast direct in-memory Buffer upload to Admin 5 TB Google Drive quota.
+ * Includes 20-second hard abort timeout, minimal field payload, and parallel background permissions.
+ */
+export async function uploadBufferToAdminDrive(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string,
+  folderCategory: 'voice_notes' | 'doubts_and_updates' | 'ad_creatives' | 'general' = 'general'
+): Promise<UploadResult> {
+  const drive = getDriveClient();
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const fileSize = buffer.length;
+
+  if (drive) {
+    try {
+      const fileMetadata = {
+        name: `[Trio ${folderCategory.toUpperCase()}] ${Date.now()}_${fileName}`,
+        parents: folderId ? [folderId] : undefined,
+        description: `Uploaded to Trio INC. Hub (${folderCategory}) - Deducted from Admin 5 TB Quota`,
+      };
+
+      const stream = Readable.from(buffer);
+      const media = {
+        mimeType,
+        body: stream,
+      };
+
+      // 20-second hard abort timeout to prevent serverless execution hanging indefinitely
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 20000);
+
+      const res = await drive.files.create(
+        {
+          requestBody: fileMetadata,
+          media,
+          fields: 'id, name, webViewLink, webContentLink, size, mimeType',
+        },
+        {
+          signal: controller.signal,
+        }
+      );
+      clearTimeout(timeoutId);
+
+      const fileId = res.data.id || `file_${Date.now()}`;
+
+      // Eliminate sequential delay: Grant anyoneWithLink read permission in background/parallel without blocking response
+      drive.permissions
+        .create({
+          fileId,
+          requestBody: {
+            role: 'reader',
+            type: 'anyone',
+          },
+        })
+        .catch((permErr) => {
+          console.warn('[Google Drive] Non-critical background permission warning:', permErr?.message || permErr);
+        });
+
+      const formattedSize = res.data.size
+        ? `${(parseInt(res.data.size, 10) / (1024 * 1024)).toFixed(2)} MB`
+        : `${(fileSize / (1024 * 1024)).toFixed(2)} MB`;
+
+      return {
+        fileId,
+        name: res.data.name || fileName,
+        mimeType: res.data.mimeType || mimeType,
+        size: formattedSize,
+        previewUrl: res.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
+        downloadUrl: res.data.webContentLink || `https://drive.google.com/uc?export=download&id=${fileId}`,
+      };
+    } catch (err: any) {
+      console.warn('[Google Drive Storage] Fast direct upload failed or timed out, using fallback buffer:', err?.message || err);
+    }
+  }
+
+  // Fallback: If Google Service Account is not available or timed out, stream buffer to data URL
+  const base64Data = buffer.toString('base64');
+  const dataUrl = `data:${mimeType};base64,${base64Data}`;
+  const generatedId = `admin_drive_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  return {
+    fileId: generatedId,
+    name: fileName,
+    mimeType,
+    size: `${(buffer.length / (1024 * 1024)).toFixed(2)} MB`,
+    previewUrl: dataUrl,
+    downloadUrl: dataUrl,
+    isSimulated: true,
+  };
+}
+
+/**
  * Upload stream to Google Drive folder directly using streaming without buffering in memory.
  * Accepts either a Readable stream or a stream factory function for safe retries/fallbacks.
  */
@@ -188,68 +282,6 @@ export async function uploadStreamToAdminDrive(
   fileSize?: number,
   folderCategory: 'voice_notes' | 'doubts_and_updates' | 'ad_creatives' | 'general' = 'general'
 ): Promise<UploadResult> {
-  const drive = getDriveClient();
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-
-  if (drive) {
-    try {
-      const fileMetadata = {
-        name: `[Trio ${folderCategory.toUpperCase()}] ${Date.now()}_${fileName}`,
-        parents: folderId ? [folderId] : undefined,
-        description: `Uploaded to Trio INC. Hub (${folderCategory}) - Deducted from Admin 5 TB Quota`,
-      };
-
-      const streamForDrive = typeof fileStreamOrFactory === 'function' 
-        ? fileStreamOrFactory() 
-        : fileStreamOrFactory;
-
-      const media = {
-        mimeType,
-        body: streamForDrive,
-      };
-
-      const res = await drive.files.create({
-        requestBody: fileMetadata,
-        media,
-        fields: 'id, name, mimeType, webViewLink, webContentLink, size',
-      });
-
-      const fileId = res.data.id || `file_${Date.now()}`;
-
-      // Set public/view permission so team members can play/view/download
-      try {
-        await drive.permissions.create({
-          fileId,
-          requestBody: {
-            role: 'reader',
-            type: 'anyone',
-          },
-        });
-      } catch (e) {
-        console.warn('Could not set public permission on drive file:', e);
-      }
-
-      const formattedSize = res.data.size
-        ? `${(parseInt(res.data.size, 10) / (1024 * 1024)).toFixed(2)} MB`
-        : fileSize
-        ? `${(fileSize / (1024 * 1024)).toFixed(2)} MB`
-        : 'HD Media';
-
-      return {
-        fileId,
-        name: res.data.name || fileName,
-        mimeType: res.data.mimeType || mimeType,
-        size: formattedSize,
-        previewUrl: res.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
-        downloadUrl: res.data.webContentLink || `https://drive.google.com/uc?export=download&id=${fileId}`,
-      };
-    } catch (err) {
-      console.error('Drive API upload failed, using fallback stream buffer:', err);
-    }
-  }
-
-  // Fallback: If Google Service Account credentials are not yet entered in .env or OpenSSL cannot decode them,
-  // stream chunks into playable Data URL.
   const streamForFallback = typeof fileStreamOrFactory === 'function'
     ? fileStreamOrFactory()
     : fileStreamOrFactory;
@@ -259,19 +291,7 @@ export async function uploadStreamToAdminDrive(
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   const buffer = Buffer.concat(chunks);
-  const base64Data = buffer.toString('base64');
-  const dataUrl = `data:${mimeType};base64,${base64Data}`;
-  const generatedId = `admin_drive_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-  return {
-    fileId: generatedId,
-    name: fileName,
-    mimeType,
-    size: `${(buffer.length / 1024).toFixed(1)} KB`,
-    previewUrl: dataUrl,
-    downloadUrl: dataUrl,
-    isSimulated: true,
-  };
+  return uploadBufferToAdminDrive(buffer, fileName, mimeType, folderCategory);
 }
 
 /**

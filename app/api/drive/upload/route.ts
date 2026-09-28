@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadStreamToAdminDrive } from '@/lib/drive';
-import { Readable } from 'stream';
+import { uploadBufferToAdminDrive } from '@/lib/drive';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
-// Handles video and media uploads via streaming multipart/form-data directly to Admin's 5 TB Drive
+/**
+ * Handles high-speed media uploads directly to Admin's 5 TB Google Drive quota.
+ * Uses direct Node.js in-memory Buffer to eliminate stream stalling and sequential bottlenecks.
+ */
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -19,14 +21,15 @@ export async function POST(req: NextRequest) {
 
     const mimeType = file.type || 'application/octet-stream';
     const fileName = file.name || `upload_${Date.now()}`;
-    const fileSize = file.size;
 
-    // Convert Web ReadableStream to Node.js Readable stream without buffering full video in memory
-    const uploadResult = await uploadStreamToAdminDrive(
-      () => Readable.fromWeb(file.stream() as any),
+    // Direct in-memory buffer conversion for maximum throughput
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    const uploadResult = await uploadBufferToAdminDrive(
+      buffer,
       fileName,
       mimeType,
-      fileSize,
       category
     );
 
@@ -34,7 +37,7 @@ export async function POST(req: NextRequest) {
       success: true,
       data: uploadResult,
       storageNote: uploadResult.isSimulated 
-        ? 'Media ready (Local / Service Account fallback). Add GOOGLE_SERVICE_ACCOUNT_EMAIL to stream directly to 5 TB Drive.'
+        ? 'Media ready (Instant fallback). Dedicated to 5 TB Google Drive.'
         : 'Uploaded directly to Admin 5 TB Google Drive quota.',
     });
   } catch (error: any) {

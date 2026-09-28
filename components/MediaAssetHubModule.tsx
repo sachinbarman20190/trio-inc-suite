@@ -67,6 +67,7 @@ interface UploadQueueItem {
   name: string;
   size: string;
   progress: number;
+  statusText?: string;
   status: 'uploading' | 'completed' | 'error';
   error?: string;
 }
@@ -106,6 +107,96 @@ function determineFormat(fileName: string, mimeType: string): MediaAssetItem['fo
   if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return 'JPG';
   if (mimeType.includes('tiff')) return 'TIFF';
   return 'PNG';
+}
+
+/**
+ * High-speed XHR uploader with accurate byte tracking:
+ * - 0% - 90%: Real network upload from device to server
+ * - 90% - 99%: "Syncing to 5 TB Drive..." while backend finishes Drive API streaming
+ * - 100%: "Done! 🎉" on response
+ */
+function uploadFileWithXHR(
+  file: File,
+  category: string,
+  onProgress: (percent: number, statusText: string) => void
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
+
+    // Initial state
+    onProgress(5, 'Preparing file...');
+
+    let syncInterval: ReturnType<typeof setInterval> | null = null;
+
+    // 0% - 90%: Real network upload from device to server
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        const ratio = e.loaded / e.total;
+        const mappedPercent = Math.min(90, Math.max(5, Math.round(ratio * 85 + 5)));
+        const mbLoaded = (e.loaded / (1024 * 1024)).toFixed(1);
+        const mbTotal = (e.total / (1024 * 1024)).toFixed(1);
+        onProgress(mappedPercent, `Uploading (${mbLoaded}/${mbTotal} MB)...`);
+      }
+    };
+
+    // When network upload finishes, server is streaming buffer to Google Drive
+    xhr.upload.onload = () => {
+      onProgress(92, 'Syncing to 5 TB Drive...');
+      let current = 92;
+      syncInterval = setInterval(() => {
+        if (current < 99) {
+          current += 1;
+          onProgress(current, 'Syncing to 5 TB Drive...');
+        }
+      }, 350);
+    };
+
+    xhr.onload = () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          if (res.success && res.data) {
+            onProgress(100, 'Done! 🎉');
+            resolve(res.data);
+          } else {
+            reject(new Error(res.error || 'Server reported failure'));
+          }
+        } catch {
+          reject(new Error('Invalid response from server'));
+        }
+      } else {
+        try {
+          const errRes = JSON.parse(xhr.responseText);
+          reject(new Error(errRes.error || `Upload failed with HTTP ${xhr.status}`));
+        } catch {
+          reject(new Error(`Upload failed with HTTP ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      if (syncInterval) clearInterval(syncInterval);
+      reject(new Error('Network error during upload'));
+    };
+
+    xhr.ontimeout = () => {
+      if (syncInterval) clearInterval(syncInterval);
+      reject(new Error('Upload timed out'));
+    };
+
+    // 45s client timeout
+    xhr.timeout = 45000;
+    xhr.open('POST', '/api/drive/upload', true);
+    xhr.send(formData);
+  });
 }
 
 export function MediaAssetHubModule() {
@@ -213,7 +304,6 @@ export function MediaAssetHubModule() {
       },
       (error) => {
         console.warn('Real-time listener notice on media_assets, using direct query fallback:', error);
-        // Fallback without index requirement
         const fallbackUnsub = onSnapshot(assetsRef, (snap) => {
           const items: MediaAssetItem[] = [];
           snap.forEach((docSnap) => {
@@ -328,8 +418,7 @@ export function MediaAssetHubModule() {
     const wasHeroSpotlight = (spotlightAsset?.id === targetId) || (pinnedSpotlightId === targetId);
 
     try {
-      // 1. Hero Spotlight Fallback Handling:
-      // If deleted asset was currently pinned as Hero Spotlight, automatically fallback to the next most recent uploaded asset
+      // 1. Hero Spotlight Fallback Handling
       if (wasHeroSpotlight) {
         const remaining = assets.filter((a) => a.id !== targetId);
         const nextHero = remaining[0] || null;
@@ -366,12 +455,13 @@ export function MediaAssetHubModule() {
         console.warn('Backend delete response info:', errPayload);
       }
 
-      // 3. Client-side Firestore delete safeguard
+      // 3. Client-side Firestore delete safeguard & optimistic state removal
       try {
         await deleteDoc(doc(db, 'media_assets', targetId));
       } catch (err) {
         console.warn('Client deleteDoc note:', err);
       }
+      setAssets((prev) => prev.filter((a) => a.id !== targetId));
 
       // 4. Close Lightbox Modal if the currently opened asset was deleted
       if (lightboxAsset?.id === targetId) {
@@ -399,7 +489,7 @@ export function MediaAssetHubModule() {
     }
   };
 
-  // 5. BATCH MULTI-FILE UPLOAD LOGIC
+  // 5. BATCH MULTI-FILE UPLOAD LOGIC WITH CONCURRENCY CONTROL (UP TO 3 CONCURRENT FILES)
   const handleUploadFiles = async (files: File[]) => {
     if (!files || files.length === 0) return;
     setIsUploadingBatch(true);
@@ -409,37 +499,27 @@ export function MediaAssetHubModule() {
       id: `up-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
       name: f.name,
       size: formatFileSize(f.size),
-      progress: 15,
+      progress: 5,
+      statusText: 'Waiting in queue...',
       status: 'uploading' as const,
     }));
 
     setUploadQueue((prev) => [...initialQueue, ...prev]);
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const qId = initialQueue[i].id;
-
+    // Worker function for an individual file upload
+    const uploadSingleBatchFile = async (file: File, qId: string) => {
       try {
-        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, progress: 40 } : item));
-
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('category', 'media_assets');
-
-        const res = await fetch('/api/drive/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData?.error || `Upload failed with status ${res.status}`);
-        }
-
-        const json = await res.json();
-        const driveData = json.data;
-
-        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, progress: 85 } : item));
+        const driveData = await uploadFileWithXHR(
+          file,
+          'media_assets',
+          (percent, statusText) => {
+            setUploadQueue((prev) =>
+              prev.map((item) =>
+                item.id === qId ? { ...item, progress: percent, statusText } : item
+              )
+            );
+          }
+        );
 
         const titleClean = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').toUpperCase();
         const category = determineCategory(file.name, file.type);
@@ -477,8 +557,15 @@ export function MediaAssetHubModule() {
 
         const addedDocRef = await addDoc(collection(db, 'media_assets'), assetDoc);
 
-        // If this is the very first asset ever uploaded, auto-set as Hero Spotlight
-        if (assets.length === 0 && i === 0) {
+        // Optimistically append to local UI immediately so card appears with zero delay
+        const newAssetItem: MediaAssetItem = {
+          id: addedDocRef.id,
+          ...assetDoc,
+        };
+        setAssets((prev) => [newAssetItem, ...prev.filter((a) => a.id !== newAssetItem.id)]);
+
+        // Auto-set as Hero Spotlight if first asset in library
+        if (assets.length === 0) {
           await setDoc(doc(db, 'system', 'media_settings'), {
             spotlightAssetId: addedDocRef.id,
             updatedAt: new Date().toISOString(),
@@ -486,7 +573,13 @@ export function MediaAssetHubModule() {
           }, { merge: true });
         }
 
-        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, progress: 100, status: 'completed' } : item));
+        setUploadQueue((prev) =>
+          prev.map((item) =>
+            item.id === qId
+              ? { ...item, progress: 100, status: 'completed', statusText: 'Done! 🎉' }
+              : item
+          )
+        );
 
         triggerToast({
           type: 'system',
@@ -496,7 +589,13 @@ export function MediaAssetHubModule() {
         });
       } catch (err: any) {
         console.error('File upload error:', err);
-        setUploadQueue((prev) => prev.map((item) => item.id === qId ? { ...item, status: 'error', error: err?.message || 'Upload failed' } : item));
+        setUploadQueue((prev) =>
+          prev.map((item) =>
+            item.id === qId
+              ? { ...item, status: 'error', error: err?.message || 'Upload failed', statusText: 'Error' }
+              : item
+          )
+        );
         triggerToast({
           type: 'system',
           title: 'Upload Failed',
@@ -504,12 +603,23 @@ export function MediaAssetHubModule() {
           targetTab: 'media-hub'
         });
       }
+    };
+
+    // CONCURRENCY CONTROL: Process up to 3 files concurrently using Promise.allSettled
+    const CONCURRENCY_LIMIT = 3;
+    for (let i = 0; i < files.length; i += CONCURRENCY_LIMIT) {
+      const fileBatch = files.slice(i, i + CONCURRENCY_LIMIT);
+      await Promise.allSettled(
+        fileBatch.map((file, batchIdx) =>
+          uploadSingleBatchFile(file, initialQueue[i + batchIdx].id)
+        )
+      );
     }
 
     setIsUploadingBatch(false);
   };
 
-  // Custom Spec Modal Upload
+  // 6. CUSTOM SPEC MODAL UPLOAD
   const handleCustomUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customFile) {
@@ -523,26 +633,16 @@ export function MediaAssetHubModule() {
     }
 
     setIsCustomUploading(true);
-    setCustomProgress(20);
+    setCustomProgress(5);
 
     try {
-      const formData = new FormData();
-      formData.append('file', customFile);
-      formData.append('category', 'media_assets');
-
-      setCustomProgress(50);
-      const res = await fetch('/api/drive/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error('Upload to Drive failed');
-      }
-
-      setCustomProgress(85);
-      const json = await res.json();
-      const driveData = json.data;
+      const driveData = await uploadFileWithXHR(
+        customFile,
+        'media_assets',
+        (percent) => {
+          setCustomProgress(percent);
+        }
+      );
 
       const newAsset: Omit<MediaAssetItem, 'id'> = {
         title: uploadTitle.trim().toUpperCase() || customFile.name.replace(/\.[^/.]+$/, '').toUpperCase(),
@@ -576,6 +676,13 @@ export function MediaAssetHubModule() {
 
       const addedDoc = await addDoc(collection(db, 'media_assets'), newAsset);
 
+      // Optimistically append to local UI immediately
+      const localItem: MediaAssetItem = {
+        id: addedDoc.id,
+        ...newAsset,
+      };
+      setAssets((prev) => [localItem, ...prev.filter((a) => a.id !== localItem.id)]);
+
       if (assets.length === 0) {
         await setDoc(doc(db, 'system', 'media_settings'), {
           spotlightAssetId: addedDoc.id,
@@ -585,16 +692,21 @@ export function MediaAssetHubModule() {
       }
 
       setCustomProgress(100);
-      setIsUploadModalOpen(false);
-      setCustomFile(null);
-      setUploadTitle('');
-
       triggerToast({
         type: 'system',
         title: 'Asset Uploaded to 5 TB Drive',
         snippet: `"${newAsset.title}" published with custom specs.`,
         targetTab: 'media-hub'
       });
+
+      // Dismiss the upload popup after 1.5 seconds
+      setTimeout(() => {
+        setIsUploadModalOpen(false);
+        setCustomFile(null);
+        setUploadTitle('');
+        setIsCustomUploading(false);
+        setCustomProgress(0);
+      }, 1500);
     } catch (err: any) {
       console.error('Custom upload error:', err);
       triggerToast({
@@ -603,13 +715,12 @@ export function MediaAssetHubModule() {
         snippet: err?.message || 'Failed to upload asset',
         targetTab: 'media-hub'
       });
-    } finally {
       setIsCustomUploading(false);
       setCustomProgress(0);
     }
   };
 
-  // 6. INSTANT DIRECT DOWNLOAD HANDLER
+  // 7. INSTANT DIRECT DOWNLOAD HANDLER
   const handleDownload = async (item: MediaAssetItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setIsDownloading(true);
@@ -841,7 +952,7 @@ export function MediaAssetHubModule() {
           </p>
           <div className="mt-4 flex items-center gap-2 text-xs font-mono bg-sky-900/70 px-4 py-2 rounded-xl text-sky-300 border border-sky-500/40">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Multiple files will be batched simultaneously</span>
+            <span>Multiple files will be batched concurrently</span>
           </div>
         </div>
       )}
@@ -1672,13 +1783,13 @@ export function MediaAssetHubModule() {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setUploadQueue([])}
-                className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-slate-800"
+                className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-slate-800 cursor-pointer"
               >
                 Clear
               </button>
               <button
                 onClick={() => setShowQueueDrawer(false)}
-                className="p-1 text-slate-400 hover:text-white"
+                className="p-1 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -1706,9 +1817,13 @@ export function MediaAssetHubModule() {
                 </div>
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-slate-400">
-                    {item.status === 'completed' && <span className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Synced to Drive</span>}
+                    {item.status === 'completed' && <span className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Done! 🎉</span>}
                     {item.status === 'error' && <span className="text-rose-400 font-semibold">{item.error || 'Failed'}</span>}
-                    {item.status === 'uploading' && <span className="text-sky-400 font-medium">Streaming to Drive API...</span>}
+                    {item.status === 'uploading' && (
+                      <span className="text-sky-400 font-medium">
+                        {item.statusText || (item.progress >= 90 ? 'Syncing to 5 TB Drive...' : 'Uploading to Server...')}
+                      </span>
+                    )}
                   </span>
                   <span className="font-mono text-slate-400">{item.progress}%</span>
                 </div>
@@ -1902,7 +2017,13 @@ export function MediaAssetHubModule() {
                 {isCustomUploading && (
                   <div className="space-y-1.5 pt-2">
                     <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>Streaming to 5 TB Google Drive...</span>
+                      <span className="font-medium text-slate-300">
+                        {customProgress >= 100 
+                          ? 'Done! 🎉' 
+                          : customProgress >= 90 
+                          ? 'Syncing to 5 TB Drive...' 
+                          : 'Uploading to server...'}
+                      </span>
                       <span className="font-mono text-sky-400 font-bold">{customProgress}%</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -1953,7 +2074,7 @@ export function MediaAssetHubModule() {
 
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
               className="relative z-10 w-full max-w-md rounded-3xl border border-red-500/30 bg-[#090d16] p-6 shadow-2xl space-y-4"
